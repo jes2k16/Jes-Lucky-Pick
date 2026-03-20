@@ -1,0 +1,6 @@
+@JesLuckyPick.Api_HostAddress = http://localhost:5026
+
+GET {{JesLuckyPick.Api_HostAddress}}/weatherforecast/
+Accept: application/json
+
+###

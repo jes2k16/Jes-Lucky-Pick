@@ -1,0 +1,13 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(npm install:*)",
+      "Bash(rm -rf node_modules package-lock.json)",
+      "Bash(npm cache:*)",
+      "Bash(rm -f src/main.ts src/counter.ts src/style.css)",
+      "Bash(rm -rf src/assets)",
+      "Bash(npx shadcn@latest add button card input label --yes)",
+      "Bash(npx shadcn@latest add table select dialog skeleton separator badge dropdown-menu sidebar sheet --yes)"
+    ]
+  }
+}

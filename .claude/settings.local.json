@@ -1,0 +1,13 @@
+{
+  "permissions": {
+    "allow": [
+      "WebSearch",
+      "Read(//c/JESMAR/GIT/Claude Research/**)",
+      "Bash(dotnet --version)",
+      "Bash(npm --version)",
+      "Bash(dotnet new:*)",
+      "Bash(mkdir -p src tests)",
+      "Bash(dotnet sln:*)"
+    ]
+  }
+}
