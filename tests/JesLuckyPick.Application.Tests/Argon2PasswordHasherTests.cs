@@ -48,12 +48,12 @@ public class Argon2PasswordHasherTests
     }
 
     [Fact]
-    public void VerifyPassword_EmptyPassword_ReturnsFalse()
+    public void VerifyPassword_EmptyPassword_ThrowsArgumentException()
     {
         var (hash, salt) = _hasher.HashPassword("SomePassword");
 
-        var result = _hasher.VerifyPassword("", hash, salt);
+        var act = () => _hasher.VerifyPassword("", hash, salt);
 
-        result.Should().BeFalse();
+        act.Should().Throw<ArgumentException>();
     }
 }
