@@ -15,6 +15,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { Label } from "@/components/ui/label";
 import { NumberBall } from "@/components/shared/NumberBall";
 import { Badge } from "@/components/ui/badge";
 import { Sparkles } from "lucide-react";
@@ -42,25 +43,25 @@ export function LuckyPickPage() {
   return (
     <div className="space-y-6">
       <div>
-        <h2 className="text-2xl font-bold text-gray-900 dark:text-gray-100">Lucky Pick Generator</h2>
-        <p className="text-gray-500 dark:text-gray-400">
+        <h2 className="text-2xl font-bold text-foreground">
+          Lucky Pick Generator
+        </h2>
+        <p className="text-sm text-muted-foreground">
           Generate your predicted numbers for PCSO Lotto 6/42
         </p>
       </div>
 
       <Card>
         <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <Sparkles className="h-5 w-5 text-yellow-500" />
+          <CardTitle className="flex items-center gap-2 text-sm font-medium">
+            <Sparkles className="h-4 w-4 text-yellow-500" />
             Pick Your Strategy
           </CardTitle>
         </CardHeader>
         <CardContent className="space-y-4">
           <div className="flex flex-wrap gap-4">
-            <div className="w-64">
-              <label className="mb-1 block text-sm text-gray-600 dark:text-gray-300">
-                Strategy
-              </label>
+            <div className="w-64 space-y-1">
+              <Label className="text-xs text-muted-foreground">Strategy</Label>
               <Select value={strategy} onValueChange={setStrategy}>
                 <SelectTrigger>
                   <SelectValue />
@@ -75,8 +76,8 @@ export function LuckyPickPage() {
               </Select>
             </div>
 
-            <div className="w-32">
-              <label className="mb-1 block text-sm text-gray-600 dark:text-gray-300">Sets</label>
+            <div className="w-32 space-y-1">
+              <Label className="text-xs text-muted-foreground">Sets</Label>
               <Select
                 value={String(count)}
                 onValueChange={(v) => setCount(Number(v))}
@@ -97,7 +98,6 @@ export function LuckyPickPage() {
             size="lg"
             onClick={() => mutation.mutate()}
             disabled={mutation.isPending}
-            className="bg-indigo-600 hover:bg-indigo-700"
           >
             {mutation.isPending ? "Generating..." : "Generate Lucky Numbers"}
           </Button>
@@ -108,8 +108,8 @@ export function LuckyPickPage() {
       {results.length > 0 && (
         <div className="space-y-4">
           {results.map((result, idx) => (
-            <Card key={idx} className="border-indigo-200">
-              <CardContent className="p-6">
+            <Card key={idx}>
+              <CardContent className="p-5">
                 <div className="flex flex-wrap items-center gap-4">
                   <div className="flex gap-3">
                     {result.numbers.map((num, i) => (
@@ -119,11 +119,13 @@ export function LuckyPickPage() {
                   <div className="flex-1">
                     <div className="mb-2 flex items-center gap-2">
                       <Badge variant="outline">{result.strategy}</Badge>
-                      <span className="text-sm text-gray-500 dark:text-gray-400">
+                      <span className="text-xs text-muted-foreground">
                         Confidence: {result.confidenceScore}%
                       </span>
                     </div>
-                    <p className="text-sm text-gray-600 dark:text-gray-300">{result.reasoning}</p>
+                    <p className="text-sm text-muted-foreground">
+                      {result.reasoning}
+                    </p>
                   </div>
                 </div>
               </CardContent>
@@ -133,7 +135,7 @@ export function LuckyPickPage() {
       )}
 
       {mutation.isError && (
-        <div className="rounded-md bg-red-50 dark:bg-red-950 p-4 text-sm text-red-600 dark:text-red-400">
+        <div className="rounded-lg border border-destructive/20 bg-destructive/10 p-4 text-sm text-destructive">
           Failed to generate prediction. Please try again.
         </div>
       )}

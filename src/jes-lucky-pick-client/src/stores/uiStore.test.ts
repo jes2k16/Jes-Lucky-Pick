@@ -3,24 +3,7 @@ import { useUiStore } from "./uiStore";
 
 describe("uiStore", () => {
   beforeEach(() => {
-    useUiStore.setState({ sidebarOpen: true, theme: "light" });
-  });
-
-  it("sidebar starts open", () => {
-    expect(useUiStore.getState().sidebarOpen).toBe(true);
-  });
-
-  it("toggleSidebar flips sidebar state", () => {
-    useUiStore.getState().toggleSidebar();
-    expect(useUiStore.getState().sidebarOpen).toBe(false);
-
-    useUiStore.getState().toggleSidebar();
-    expect(useUiStore.getState().sidebarOpen).toBe(true);
-  });
-
-  it("setSidebarOpen sets specific value", () => {
-    useUiStore.getState().setSidebarOpen(false);
-    expect(useUiStore.getState().sidebarOpen).toBe(false);
+    useUiStore.setState({ theme: "light" });
   });
 
   it("toggleTheme switches between light and dark", () => {

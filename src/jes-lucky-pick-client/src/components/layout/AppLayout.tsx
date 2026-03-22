@@ -1,4 +1,5 @@
-import { Outlet, NavLink, useNavigate } from "react-router";
+import { Outlet, NavLink, useNavigate, useLocation } from "react-router";
+import { useQuery } from "@tanstack/react-query";
 import {
   LayoutDashboard,
   History,
@@ -8,25 +9,74 @@ import {
   LogOut,
   Moon,
   Sun,
+  ChevronsUpDown,
 } from "lucide-react";
 import { useAuthStore } from "@/stores/authStore";
 import { useUiStore } from "@/stores/uiStore";
 import { setAccessToken } from "@/lib/api-client";
 import apiClient from "@/lib/api-client";
-import { cn } from "@/lib/utils";
-import { Button } from "@/components/ui/button";
+import { fetchDashboardStats } from "@/features/dashboard/api/dashboardApi";
+import {
+  Sidebar,
+  SidebarContent,
+  SidebarFooter,
+  SidebarGroup,
+  SidebarGroupContent,
+  SidebarGroupLabel,
+  SidebarHeader,
+  SidebarInset,
+  SidebarMenu,
+  SidebarMenuBadge,
+  SidebarMenuButton,
+  SidebarMenuItem,
+  SidebarProvider,
+  SidebarRail,
+} from "@/components/ui/sidebar";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 
 const navItems = [
-  { to: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
-  { to: "/history", label: "History", icon: History },
-  { to: "/lucky-pick", label: "Lucky Pick", icon: Sparkles },
-  { to: "/analysis", label: "Analysis", icon: BarChart3 },
+  { to: "/dashboard", label: "Dashboard", icon: LayoutDashboard, statKey: null },
+  { to: "/history", label: "History", icon: History, statKey: "totalDraws" as const },
+  { to: "/lucky-pick", label: "Lucky Pick", icon: Sparkles, statKey: null },
+  { to: "/analysis", label: "Analysis", icon: BarChart3, statKey: "mostFrequentNumber" as const },
 ];
+
+type StatKey = "totalDraws" | "mostFrequentNumber";
+
+function getInitialSidebarOpen(): boolean {
+  if (typeof document === "undefined") return true;
+  const cookie = document.cookie
+    .split("; ")
+    .find((c) => c.startsWith("sidebar_state="));
+  if (cookie) return cookie.split("=")[1] === "true";
+  return true;
+}
 
 export function AppLayout() {
   const { user, logout } = useAuthStore();
   const { theme, toggleTheme } = useUiStore();
   const navigate = useNavigate();
+  const location = useLocation();
+
+  const { data: stats } = useQuery({
+    queryKey: ["dashboard", "stats"],
+    queryFn: fetchDashboardStats,
+    staleTime: 5 * 60 * 1000,
+  });
+
+  const getStatBadge = (statKey: StatKey | null) => {
+    if (!statKey || !stats) return null;
+    if (statKey === "totalDraws") return stats.totalDraws.toLocaleString();
+    if (statKey === "mostFrequentNumber") return `#${stats.mostFrequentNumber}`;
+    return null;
+  };
 
   const handleLogout = async () => {
     try {
@@ -39,80 +89,151 @@ export function AppLayout() {
   };
 
   return (
-    <div className="flex h-screen bg-gray-50 dark:bg-gray-950">
-      <aside className="flex w-64 flex-col border-r border-gray-200 bg-white dark:border-gray-800 dark:bg-gray-900">
-        <div className="border-b border-gray-200 p-6 dark:border-gray-800">
-          <h1 className="text-xl font-bold text-indigo-600 dark:text-indigo-400">
-            Jes Lucky Pick
-          </h1>
-          <p className="text-xs text-gray-500 dark:text-gray-400">
-            PCSO 6/42 Predictor
-          </p>
-        </div>
+    <SidebarProvider defaultOpen={getInitialSidebarOpen()}>
+      <Sidebar collapsible="icon">
+        {/* Header — Logo */}
+        <SidebarHeader>
+          <SidebarMenu>
+            <SidebarMenuItem>
+              <SidebarMenuButton size="lg" asChild>
+                <NavLink to="/dashboard">
+                  <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary">
+                    <Sparkles className="h-4 w-4 text-primary-foreground" />
+                  </div>
+                  <div className="grid flex-1 text-left text-sm leading-tight">
+                    <span className="truncate font-semibold">Jes Lucky Pick</span>
+                    <span className="truncate text-xs text-muted-foreground">
+                      PCSO 6/42
+                    </span>
+                  </div>
+                </NavLink>
+              </SidebarMenuButton>
+            </SidebarMenuItem>
+          </SidebarMenu>
+        </SidebarHeader>
 
-        <nav className="flex-1 space-y-1 p-4">
-          {navItems.map(({ to, label, icon: Icon }) => (
-            <NavLink
-              key={to}
-              to={to}
-              className={({ isActive }) =>
-                cn(
-                  "flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition-colors",
-                  isActive
-                    ? "bg-indigo-50 text-indigo-700 dark:bg-indigo-950 dark:text-indigo-300"
-                    : "text-gray-600 hover:bg-gray-100 dark:text-gray-400 dark:hover:bg-gray-800"
-                )
-              }
-            >
-              <Icon className="h-4 w-4" />
-              {label}
-            </NavLink>
-          ))}
+        <SidebarContent>
+          {/* Main Navigation */}
+          <SidebarGroup>
+            <SidebarGroupLabel>Platform</SidebarGroupLabel>
+            <SidebarGroupContent>
+              <SidebarMenu>
+                {navItems.map(({ to, label, icon: Icon, statKey }) => {
+                  const badge = getStatBadge(statKey);
+                  const isActive = location.pathname === to;
+                  return (
+                    <SidebarMenuItem key={to}>
+                      <SidebarMenuButton
+                        asChild
+                        isActive={isActive}
+                        tooltip={label}
+                      >
+                        <NavLink to={to}>
+                          <Icon />
+                          <span>{label}</span>
+                        </NavLink>
+                      </SidebarMenuButton>
+                      {badge && <SidebarMenuBadge>{badge}</SidebarMenuBadge>}
+                    </SidebarMenuItem>
+                  );
+                })}
 
-          {user?.role === "Admin" && (
-            <NavLink
-              to="/admin"
-              className={({ isActive }) =>
-                cn(
-                  "flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition-colors",
-                  isActive
-                    ? "bg-indigo-50 text-indigo-700 dark:bg-indigo-950 dark:text-indigo-300"
-                    : "text-gray-600 hover:bg-gray-100 dark:text-gray-400 dark:hover:bg-gray-800"
-                )
-              }
-            >
-              <Shield className="h-4 w-4" />
-              Admin
-            </NavLink>
-          )}
-        </nav>
+                {user?.role === "Admin" && (
+                  <SidebarMenuItem>
+                    <SidebarMenuButton
+                      asChild
+                      isActive={location.pathname === "/admin"}
+                      tooltip="Admin"
+                    >
+                      <NavLink to="/admin">
+                        <Shield />
+                        <span>Admin</span>
+                      </NavLink>
+                    </SidebarMenuButton>
+                  </SidebarMenuItem>
+                )}
+              </SidebarMenu>
+            </SidebarGroupContent>
+          </SidebarGroup>
 
-        <div className="border-t border-gray-200 p-4 dark:border-gray-800">
-          <div className="mb-2 flex items-center justify-between">
-            <span className="text-sm font-medium text-gray-700 dark:text-gray-300">
-              {user?.username}
-            </span>
-            <Button variant="ghost" size="icon" onClick={toggleTheme}>
-              {theme === "dark" ? (
-                <Sun className="h-4 w-4" />
-              ) : (
-                <Moon className="h-4 w-4" />
-              )}
-            </Button>
-          </div>
-          <button
-            onClick={handleLogout}
-            className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-sm text-gray-600 hover:bg-gray-100 dark:text-gray-400 dark:hover:bg-gray-800"
-          >
-            <LogOut className="h-4 w-4" />
-            Logout
-          </button>
-        </div>
-      </aside>
+          {/* Secondary — Theme toggle */}
+          <SidebarGroup className="mt-auto">
+            <SidebarGroupContent>
+              <SidebarMenu>
+                <SidebarMenuItem>
+                  <SidebarMenuButton
+                    onClick={toggleTheme}
+                    tooltip={theme === "dark" ? "Light mode" : "Dark mode"}
+                  >
+                    {theme === "dark" ? <Sun /> : <Moon />}
+                    <span>{theme === "dark" ? "Light mode" : "Dark mode"}</span>
+                  </SidebarMenuButton>
+                </SidebarMenuItem>
+              </SidebarMenu>
+            </SidebarGroupContent>
+          </SidebarGroup>
+        </SidebarContent>
 
-      <main className="flex-1 overflow-auto p-8">
-        <Outlet />
-      </main>
-    </div>
+        {/* Footer — User */}
+        <SidebarFooter>
+          <SidebarMenu>
+            <SidebarMenuItem>
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <SidebarMenuButton
+                    size="lg"
+                    tooltip={user?.username ?? "User"}
+                  >
+                    <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-sidebar-accent text-sidebar-accent-foreground">
+                      <span className="text-xs font-semibold">
+                        {user?.username?.charAt(0).toUpperCase() ?? "U"}
+                      </span>
+                    </div>
+                    <div className="grid flex-1 text-left text-sm leading-tight">
+                      <span className="truncate font-semibold">
+                        {user?.username}
+                      </span>
+                      <span className="truncate text-xs text-muted-foreground">
+                        {user?.email}
+                      </span>
+                    </div>
+                    <ChevronsUpDown className="ml-auto size-4" />
+                  </SidebarMenuButton>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent
+                  side="top"
+                  className="w-[--radix-dropdown-menu-trigger-width] min-w-56"
+                  align="start"
+                >
+                  <DropdownMenuLabel className="font-normal">
+                    <div className="flex flex-col space-y-1">
+                      <p className="text-sm font-medium leading-none">
+                        {user?.username}
+                      </p>
+                      <p className="text-xs leading-none text-muted-foreground">
+                        {user?.email}
+                      </p>
+                    </div>
+                  </DropdownMenuLabel>
+                  <DropdownMenuSeparator />
+                  <DropdownMenuItem onClick={handleLogout}>
+                    <LogOut />
+                    Log out
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
+            </SidebarMenuItem>
+          </SidebarMenu>
+        </SidebarFooter>
+
+        <SidebarRail />
+      </Sidebar>
+
+      <SidebarInset>
+        <main className="flex-1 overflow-auto p-6">
+          <Outlet />
+        </main>
+      </SidebarInset>
+    </SidebarProvider>
   );
 }

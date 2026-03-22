@@ -14,8 +14,11 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { ResponsiveBar } from "@nivo/bar";
 import { ResponsivePie } from "@nivo/pie";
 import { NumberBall } from "@/components/shared/NumberBall";
+import { useUiStore } from "@/stores/uiStore";
 
 export function AnalysisPage() {
+  const theme = useUiStore((s) => s.theme);
+
   const { data: frequency, isLoading: freqLoading } = useQuery({
     queryKey: ["analysis", "frequency"],
     queryFn: fetchFrequency,
@@ -31,19 +34,30 @@ export function AnalysisPage() {
     queryFn: fetchPatterns,
   });
 
+  const chartTextColor = theme === "dark" ? "#a1a1aa" : "#71717a";
+  const chartGridColor = theme === "dark" ? "hsl(240 3.7% 15.9%)" : "hsl(240 5.9% 90%)";
+  const tooltipStyle = {
+    background: theme === "dark" ? "#1c1c1e" : "#fff",
+    color: theme === "dark" ? "#fff" : "#000",
+    borderRadius: "6px",
+    fontSize: "12px",
+  };
+
   return (
     <div className="space-y-6">
       <div>
-        <h2 className="text-2xl font-bold text-gray-900 dark:text-gray-100">Analysis</h2>
-        <p className="text-gray-500 dark:text-gray-400">
+        <h2 className="text-2xl font-bold text-foreground">Analysis</h2>
+        <p className="text-sm text-muted-foreground">
           Statistical analysis of PCSO 6/42 draw history
         </p>
       </div>
 
       {/* Frequency Chart */}
       <Card>
-        <CardHeader>
-          <CardTitle>Number Frequency</CardTitle>
+        <CardHeader className="pb-2">
+          <CardTitle className="text-sm font-medium">
+            Number Frequency
+          </CardTitle>
         </CardHeader>
         <CardContent>
           {freqLoading ? (
@@ -73,23 +87,40 @@ export function AnalysisPage() {
                   legend: "Number",
                   legendPosition: "middle",
                   legendOffset: 40,
+                  tickSize: 0,
+                  tickPadding: 5,
                 }}
                 axisLeft={{
                   legend: "Frequency",
                   legendPosition: "middle",
                   legendOffset: -50,
+                  tickSize: 0,
+                  tickPadding: 8,
                 }}
+                theme={{
+                  text: { fill: chartTextColor },
+                  axis: {
+                    ticks: { text: { fill: chartTextColor, fontSize: 10 } },
+                    legend: { text: { fill: chartTextColor, fontSize: 12 } },
+                  },
+                  grid: { line: { stroke: chartGridColor } },
+                  tooltip: { container: tooltipStyle },
+                }}
+                borderRadius={2}
+                enableLabel={false}
               />
             </div>
           ) : null}
         </CardContent>
       </Card>
 
-      <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
+      <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
         {/* Hot Numbers */}
         <Card>
-          <CardHeader>
-            <CardTitle className="text-red-600">Hot Numbers (Last 30 Draws)</CardTitle>
+          <CardHeader className="pb-2">
+            <CardTitle className="text-sm font-medium text-red-500">
+              Hot Numbers (Last 30 Draws)
+            </CardTitle>
           </CardHeader>
           <CardContent>
             {hotColdLoading ? (
@@ -97,9 +128,14 @@ export function AnalysisPage() {
             ) : hotCold ? (
               <div className="flex flex-wrap gap-3">
                 {hotCold.hotNumbers.map((n) => (
-                  <div key={n.number} className="flex flex-col items-center gap-1">
+                  <div
+                    key={n.number}
+                    className="flex flex-col items-center gap-1"
+                  >
                     <NumberBall number={n.number} size="md" />
-                    <span className="text-xs text-gray-500 dark:text-gray-400">{n.count}x</span>
+                    <span className="text-[10px] text-muted-foreground">
+                      {n.count}x
+                    </span>
                   </div>
                 ))}
               </div>
@@ -109,8 +145,10 @@ export function AnalysisPage() {
 
         {/* Cold Numbers */}
         <Card>
-          <CardHeader>
-            <CardTitle className="text-blue-600">Cold Numbers (Last 30 Draws)</CardTitle>
+          <CardHeader className="pb-2">
+            <CardTitle className="text-sm font-medium text-blue-500">
+              Cold Numbers (Last 30 Draws)
+            </CardTitle>
           </CardHeader>
           <CardContent>
             {hotColdLoading ? (
@@ -118,9 +156,14 @@ export function AnalysisPage() {
             ) : hotCold ? (
               <div className="flex flex-wrap gap-3">
                 {hotCold.coldNumbers.map((n) => (
-                  <div key={n.number} className="flex flex-col items-center gap-1">
+                  <div
+                    key={n.number}
+                    className="flex flex-col items-center gap-1"
+                  >
                     <NumberBall number={n.number} size="md" />
-                    <span className="text-xs text-gray-500 dark:text-gray-400">{n.count}x</span>
+                    <span className="text-[10px] text-muted-foreground">
+                      {n.count}x
+                    </span>
                   </div>
                 ))}
               </div>
@@ -131,8 +174,10 @@ export function AnalysisPage() {
 
       {/* Odd/Even Distribution */}
       <Card>
-        <CardHeader>
-          <CardTitle>Odd/Even Distribution</CardTitle>
+        <CardHeader className="pb-2">
+          <CardTitle className="text-sm font-medium">
+            Odd/Even Distribution
+          </CardTitle>
         </CardHeader>
         <CardContent>
           {patternsLoading ? (
@@ -149,9 +194,13 @@ export function AnalysisPage() {
                 innerRadius={0.5}
                 padAngle={1}
                 colors={{ scheme: "paired" }}
-                arcLinkLabelsTextColor="#333"
+                arcLinkLabelsTextColor={chartTextColor}
                 arcLinkLabelsThickness={2}
                 arcLabelsTextColor="#fff"
+                theme={{
+                  text: { fill: chartTextColor },
+                  tooltip: { container: tooltipStyle },
+                }}
               />
             </div>
           ) : null}

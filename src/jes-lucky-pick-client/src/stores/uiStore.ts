@@ -3,10 +3,7 @@ import { create } from "zustand";
 type Theme = "light" | "dark";
 
 interface UiState {
-  sidebarOpen: boolean;
   theme: Theme;
-  toggleSidebar: () => void;
-  setSidebarOpen: (open: boolean) => void;
   toggleTheme: () => void;
   setTheme: (theme: Theme) => void;
 }
@@ -29,10 +26,7 @@ const initialTheme = getInitialTheme();
 applyTheme(initialTheme);
 
 export const useUiStore = create<UiState>((set) => ({
-  sidebarOpen: true,
   theme: initialTheme,
-  toggleSidebar: () => set((state) => ({ sidebarOpen: !state.sidebarOpen })),
-  setSidebarOpen: (open) => set({ sidebarOpen: open }),
   toggleTheme: () =>
     set((state) => {
       const next = state.theme === "light" ? "dark" : "light";

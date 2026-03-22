@@ -92,8 +92,8 @@ export function AdminPage() {
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <div>
-          <h2 className="text-2xl font-bold text-gray-900 dark:text-gray-100">Admin Panel</h2>
-          <p className="text-gray-500 dark:text-gray-400">Manage users and system settings</p>
+          <h2 className="text-2xl font-bold text-foreground">Admin Panel</h2>
+          <p className="text-sm text-muted-foreground">Manage users and system settings</p>
         </div>
         <Button onClick={openCreate}>
           <Plus className="mr-2 h-4 w-4" />
@@ -212,7 +212,7 @@ export function AdminPage() {
             <CardTitle>Audit Logs</CardTitle>
           </CardHeader>
           <CardContent>
-            <p className="text-sm text-gray-500 dark:text-gray-400">
+            <p className="text-sm text-muted-foreground">
               View system activity and audit trail.
             </p>
             <Badge className="mt-2" variant="outline">
@@ -225,7 +225,7 @@ export function AdminPage() {
             <CardTitle>Data Seeding</CardTitle>
           </CardHeader>
           <CardContent>
-            <p className="text-sm text-gray-500 dark:text-gray-400">
+            <p className="text-sm text-muted-foreground">
               Trigger manual data import for draw history.
             </p>
             <Badge className="mt-2" variant="outline">
@@ -238,7 +238,7 @@ export function AdminPage() {
             <CardTitle>Other Games</CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="space-y-1 text-sm text-gray-500 dark:text-gray-400">
+            <div className="space-y-1 text-sm text-muted-foreground">
               <p>6/49 — Coming Soon</p>
               <p>6/55 — Coming Soon</p>
               <p>6/58 — Coming Soon</p>
