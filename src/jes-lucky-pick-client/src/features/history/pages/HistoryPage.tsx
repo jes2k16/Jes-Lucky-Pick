@@ -1,6 +1,10 @@
 import { useState } from "react";
-import { useQuery } from "@tanstack/react-query";
-import { fetchDraws } from "@/features/history/api/drawsApi";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import {
+  fetchDraws,
+  fetchLatestResults,
+  createDraw,
+} from "@/features/history/api/drawsApi";
 import {
   Card,
   CardContent,
@@ -18,15 +22,33 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from "@/components/ui/dialog";
 import { NumberBall } from "@/components/shared/NumberBall";
 import { Skeleton } from "@/components/ui/skeleton";
-import { X } from "lucide-react";
+import { X, RefreshCw, Plus } from "lucide-react";
+import { formatDate } from "@/lib/format-date";
 
 export function HistoryPage() {
   const [page, setPage] = useState(1);
   const [fromDate, setFromDate] = useState("");
   const [toDate, setToDate] = useState("");
+  const [fetchMessage, setFetchMessage] = useState<{
+    text: string;
+    type: "success" | "error";
+  } | null>(null);
+  const [manualOpen, setManualOpen] = useState(false);
+  const [manualDate, setManualDate] = useState("");
+  const [manualNumbers, setManualNumbers] = useState(["", "", "", "", "", ""]);
+  const [manualJackpot, setManualJackpot] = useState("");
+  const [manualWinners, setManualWinners] = useState("");
   const pageSize = 20;
+  const queryClient = useQueryClient();
 
   const { data, isLoading } = useQuery({
     queryKey: ["draws", page, fromDate, toDate],
@@ -39,7 +61,55 @@ export function HistoryPage() {
       }),
   });
 
+  const fetchMutation = useMutation({
+    mutationFn: () => fetchLatestResults(),
+    onSuccess: (result) => {
+      setFetchMessage({ text: result.message, type: "success" });
+      queryClient.invalidateQueries({ queryKey: ["draws"] });
+    },
+    onError: () => {
+      setFetchMessage({
+        text: "Failed to fetch results from PCSO. Try manual entry.",
+        type: "error",
+      });
+    },
+  });
+
+  const manualMutation = useMutation({
+    mutationFn: () =>
+      createDraw({
+        gameCode: "6_42",
+        drawDate: manualDate,
+        numbers: manualNumbers.map(Number),
+        jackpotAmount: manualJackpot ? Number(manualJackpot) : null,
+        winnersCount: manualWinners ? Number(manualWinners) : null,
+      }),
+    onSuccess: () => {
+      setManualOpen(false);
+      setManualDate("");
+      setManualNumbers(["", "", "", "", "", ""]);
+      setManualJackpot("");
+      setManualWinners("");
+      setFetchMessage({ text: "Draw added successfully.", type: "success" });
+      queryClient.invalidateQueries({ queryKey: ["draws"] });
+    },
+    onError: () => {
+      setFetchMessage({
+        text: "Failed to add draw. Check your input.",
+        type: "error",
+      });
+    },
+  });
+
   const totalPages = data ? Math.ceil(data.totalCount / pageSize) : 0;
+
+  const isManualValid =
+    manualDate &&
+    manualNumbers.every((n) => {
+      const num = Number(n);
+      return n && Number.isInteger(num) && num >= 1 && num <= 42;
+    }) &&
+    new Set(manualNumbers.map(Number)).size === 6;
 
   return (
     <div className="space-y-6">
@@ -50,7 +120,7 @@ export function HistoryPage() {
         </p>
       </div>
 
-      {/* Filters */}
+      {/* Filters + Fetch Button */}
       <div className="flex flex-wrap items-end gap-4">
         <div className="space-y-1">
           <Label className="text-xs text-muted-foreground">From</Label>
@@ -90,7 +160,109 @@ export function HistoryPage() {
             Clear
           </Button>
         )}
+
+        <div className="ml-auto flex gap-2">
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => {
+              setFetchMessage(null);
+              fetchMutation.mutate();
+            }}
+            disabled={fetchMutation.isPending}
+          >
+            <RefreshCw
+              className={`mr-1 h-3 w-3 ${fetchMutation.isPending ? "animate-spin" : ""}`}
+            />
+            {fetchMutation.isPending ? "Fetching..." : "Fetch Latest Results"}
+          </Button>
+
+          <Dialog open={manualOpen} onOpenChange={setManualOpen}>
+            <DialogTrigger asChild>
+              <Button variant="outline" size="sm">
+                <Plus className="mr-1 h-3 w-3" />
+                Manual Entry
+              </Button>
+            </DialogTrigger>
+            <DialogContent>
+              <DialogHeader>
+                <DialogTitle>Add Draw Result</DialogTitle>
+              </DialogHeader>
+              <div className="space-y-4">
+                <div className="space-y-1">
+                  <Label>Draw Date</Label>
+                  <Input
+                    type="date"
+                    value={manualDate}
+                    onChange={(e) => setManualDate(e.target.value)}
+                  />
+                </div>
+                <div className="space-y-1">
+                  <Label>Numbers (1-42)</Label>
+                  <div className="flex gap-2">
+                    {manualNumbers.map((n, i) => (
+                      <Input
+                        key={i}
+                        type="number"
+                        min={1}
+                        max={42}
+                        value={n}
+                        onChange={(e) => {
+                          const updated = [...manualNumbers];
+                          updated[i] = e.target.value;
+                          setManualNumbers(updated);
+                        }}
+                        className="w-16 text-center"
+                        placeholder={`#${i + 1}`}
+                      />
+                    ))}
+                  </div>
+                </div>
+                <div className="flex gap-4">
+                  <div className="flex-1 space-y-1">
+                    <Label>Jackpot (optional)</Label>
+                    <Input
+                      type="number"
+                      value={manualJackpot}
+                      onChange={(e) => setManualJackpot(e.target.value)}
+                      placeholder="e.g., 10000000"
+                    />
+                  </div>
+                  <div className="w-24 space-y-1">
+                    <Label>Winners</Label>
+                    <Input
+                      type="number"
+                      value={manualWinners}
+                      onChange={(e) => setManualWinners(e.target.value)}
+                      placeholder="0"
+                    />
+                  </div>
+                </div>
+                <Button
+                  className="w-full"
+                  onClick={() => manualMutation.mutate()}
+                  disabled={!isManualValid || manualMutation.isPending}
+                >
+                  {manualMutation.isPending ? "Adding..." : "Add Draw"}
+                </Button>
+              </div>
+            </DialogContent>
+          </Dialog>
+        </div>
       </div>
+
+      {/* Fetch message */}
+      {fetchMessage && (
+        <div
+          className={`rounded-lg border p-3 text-sm ${
+            fetchMessage.type === "success"
+              ? "border-green-200 bg-green-50 text-green-700 dark:border-green-800 dark:bg-green-950 dark:text-green-300"
+              : "border-destructive/20 bg-destructive/10 text-destructive"
+          }`}
+        >
+          {fetchMessage.text}
+        </div>
+      )}
 
       <Card>
         <CardHeader className="pb-2">
@@ -126,7 +298,7 @@ export function HistoryPage() {
                   {data?.items.map((draw) => (
                     <TableRow key={draw.id}>
                       <TableCell className="text-sm font-medium">
-                        {draw.drawDate}
+                        {formatDate(draw.drawDate)}
                       </TableCell>
                       <TableCell className="text-sm text-muted-foreground">
                         {draw.dayOfWeek}

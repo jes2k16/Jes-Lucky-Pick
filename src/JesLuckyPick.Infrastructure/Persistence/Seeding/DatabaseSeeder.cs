@@ -19,6 +19,7 @@ public class DatabaseSeeder(
         await SeedLottoGamesAsync(ct);
         await SeedDrawsFromCsvAsync(ct);
         await SeedDefaultAdminAsync(ct);
+        await SeedDefaultSettingsAsync(ct);
     }
 
     private async Task SeedDefaultAdminAsync(CancellationToken ct)
@@ -111,8 +112,10 @@ public class DatabaseSeeder(
             var parts = line.Split(',');
             if (parts.Length < 7) continue;
 
-            if (!DateOnly.TryParse(parts[0].Trim(), CultureInfo.InvariantCulture, out var drawDate))
+            if (!DateTime.TryParse(parts[0].Trim(), CultureInfo.InvariantCulture,
+                    DateTimeStyles.None, out var parsedDrawDate))
                 continue;
+            var drawDate = DateTime.SpecifyKind(parsedDrawDate.Date.AddHours(13), DateTimeKind.Utc);
 
             var numbers = new short[6];
             var valid = true;
@@ -164,5 +167,21 @@ public class DatabaseSeeder(
         }
 
         logger.LogInformation("Seeded {Count} draws from CSV", draws.Count);
+    }
+
+    private async Task SeedDefaultSettingsAsync(CancellationToken ct)
+    {
+        if (await context.AppSettings.AnyAsync(ct))
+            return;
+
+        var defaults = new List<AppSetting>
+        {
+            new() { Key = "Ai:IsEnabled", Value = "false", UpdatedAt = DateTime.UtcNow },
+            new() { Key = "Ai:Model", Value = "claude-sonnet-4-20250514", UpdatedAt = DateTime.UtcNow }
+        };
+
+        await context.AppSettings.AddRangeAsync(defaults, ct);
+        await context.SaveChangesAsync(ct);
+        logger.LogInformation("Seeded default AI settings");
     }
 }

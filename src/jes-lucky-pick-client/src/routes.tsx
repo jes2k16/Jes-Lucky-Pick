@@ -6,6 +6,8 @@ import { HistoryPage } from "@/features/history/pages/HistoryPage";
 import { LuckyPickPage } from "@/features/lucky-pick/pages/LuckyPickPage";
 import { AnalysisPage } from "@/features/analysis/pages/AnalysisPage";
 import { AdminPage } from "@/features/admin/pages/AdminPage";
+import { SettingsPage } from "@/features/admin/pages/SettingsPage";
+import { ProfilePage } from "@/features/profile/pages/ProfilePage";
 import { useAuthStore } from "@/stores/authStore";
 import type { ReactNode } from "react";
 
@@ -34,6 +36,8 @@ export function AppRoutes() {
           <Route path="lucky-pick" element={<LuckyPickPage />} />
           <Route path="analysis" element={<AnalysisPage />} />
           <Route path="admin" element={<AdminPage />} />
+          <Route path="admin/settings" element={<SettingsPage />} />
+          <Route path="profile" element={<ProfilePage />} />
         </Route>
       </Routes>
     </BrowserRouter>

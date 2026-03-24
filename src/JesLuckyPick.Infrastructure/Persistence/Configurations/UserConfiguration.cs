@@ -16,6 +16,11 @@ public class UserConfiguration : IEntityTypeConfiguration<User>
         builder.Property(x => x.PasswordHash).IsRequired();
         builder.Property(x => x.PasswordSalt).IsRequired();
         builder.Property(x => x.Role).HasConversion<string>().HasMaxLength(20);
+        builder.Property(x => x.FirstName).HasMaxLength(100);
+        builder.Property(x => x.LastName).HasMaxLength(100);
+        builder.Property(x => x.PhoneNumber).HasMaxLength(20);
+        builder.Property(x => x.Bio).HasMaxLength(500);
+        builder.Property(x => x.ProfilePictureBase64).HasColumnType("text");
         builder.Property(x => x.CreatedAt).HasDefaultValueSql("now()");
         builder.Property(x => x.UpdatedAt).HasDefaultValueSql("now()");
 

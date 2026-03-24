@@ -10,7 +10,7 @@ public class DrawRepository(AppDbContext context) : IDrawRepository
         => await context.Draws.Include(d => d.Game).FirstOrDefaultAsync(d => d.Id == id, ct);
 
     public async Task<(IReadOnlyList<Draw> Items, int TotalCount)> GetPagedAsync(
-        Guid gameId, DateOnly? from, DateOnly? to,
+        Guid gameId, DateTime? from, DateTime? to,
         int page, int pageSize, CancellationToken ct = default)
     {
         var query = context.Draws.Where(d => d.GameId == gameId);
@@ -51,4 +51,10 @@ public class DrawRepository(AppDbContext context) : IDrawRepository
         await context.Draws.AddRangeAsync(draws, ct);
         await context.SaveChangesAsync(ct);
     }
+
+    public async Task<Draw?> GetFirstOnOrAfterDateAsync(Guid gameId, DateTime date, CancellationToken ct = default)
+        => await context.Draws
+            .Where(d => d.GameId == gameId && d.DrawDate >= date)
+            .OrderBy(d => d.DrawDate)
+            .FirstOrDefaultAsync(ct);
 }

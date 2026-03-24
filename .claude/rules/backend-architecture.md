@@ -19,3 +19,4 @@ Clean Architecture layers: `Domain → Application → Infrastructure → Api`
 - EF Core uses Fluent API configurations (no data annotations)
 - Solution file is `.slnx` format (not `.sln`)
 - NuGet restore uses local `nuget.config` (clears inherited feeds, uses only nuget.org)
+- When adding a new feature, new fields, or modifying existing code, always update the corresponding unit tests

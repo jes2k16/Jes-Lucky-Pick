@@ -29,6 +29,7 @@ import {
   TrendingUp,
 } from "lucide-react";
 import { useUiStore } from "@/stores/uiStore";
+import { formatDate, formatDateShort } from "@/lib/format-date";
 
 export function DashboardPage() {
   const theme = useUiStore((s) => s.theme);
@@ -78,7 +79,7 @@ export function DashboardPage() {
           icon: Trophy,
           iconColor: "text-green-500",
           iconBg: "bg-green-500/10",
-          sub: stats.lastDrawDate ?? "",
+          sub: stats.lastDrawDate ? formatDate(stats.lastDrawDate) : "",
         },
         {
           label: "Days Since Draw",
@@ -106,7 +107,7 @@ export function DashboardPage() {
               .reverse()
               .filter((d) => d.jackpotAmount != null)
               .map((d) => ({
-                x: d.drawDate,
+                x: formatDateShort(d.drawDate),
                 y: d.jackpotAmount!,
               })),
           },
@@ -328,7 +329,7 @@ export function DashboardPage() {
                 {recentDraws?.map((draw) => (
                   <TableRow key={draw.id}>
                     <TableCell className="text-sm font-medium">
-                      {draw.drawDate}
+                      {formatDate(draw.drawDate)}
                     </TableCell>
                     <TableCell className="text-sm text-muted-foreground">
                       {draw.dayOfWeek}

@@ -58,6 +58,7 @@ public static class PredictionEndpoints
 
         group.MapGet("/", async (
             IPredictionRepository predictionRepo,
+            IDrawRepository drawRepo,
             ClaimsPrincipal user,
             int page = 1,
             int pageSize = 20) =>
@@ -65,11 +66,31 @@ public static class PredictionEndpoints
             var userId = Guid.Parse(user.FindFirstValue(ClaimTypes.NameIdentifier)!);
             var (items, totalCount) = await predictionRepo.GetByUserPagedAsync(userId, page, pageSize);
 
+            var historyItems = new List<PredictionHistoryItem>();
+            foreach (var p in items)
+            {
+                var closestDraw = await drawRepo.GetFirstOnOrAfterDateAsync(p.GameId, p.CreatedAt);
+
+                PredictionMatchInfo? matchInfo = null;
+                if (closestDraw is not null)
+                {
+                    var predNums = p.GetNumbers().ToHashSet();
+                    var drawNums = closestDraw.GetNumbers();
+                    var matched = drawNums.Count(n => predNums.Contains(n));
+                    matchInfo = new PredictionMatchInfo(
+                        closestDraw.DrawDate, drawNums, matched,
+                        Math.Round(matched / 6.0m * 100, 1));
+                }
+
+                historyItems.Add(new PredictionHistoryItem(
+                    p.Id, p.GetNumbers(), p.ConfidenceScore,
+                    p.Strategy.ToString(), p.Reasoning,
+                    p.CreatedAt, matchInfo));
+            }
+
             return Results.Ok(new
             {
-                items = items.Select(p => new PredictionResponse(
-                    p.GetNumbers(), p.ConfidenceScore,
-                    p.Strategy.ToString(), p.Reasoning)),
+                items = historyItems,
                 totalCount,
                 page,
                 pageSize

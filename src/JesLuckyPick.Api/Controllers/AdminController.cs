@@ -22,7 +22,7 @@ public class AdminController(
         var (items, totalCount) = await userRepository.GetPagedAsync(page, pageSize, ct);
         return Ok(new
         {
-            items = items.Select(u => new UserDto(u.Id, u.Username, u.Email, u.Role.ToString())),
+            items = items.Select(u => new UserDto(u.Id, u.Username, u.Email, u.Role.ToString(), u.ProfilePictureBase64, u.FirstName, u.LastName, u.PhoneNumber, u.Bio)),
             totalCount,
             page,
             pageSize
@@ -50,12 +50,16 @@ public class AdminController(
             PasswordSalt = salt,
             Role = Enum.Parse<UserRole>(request.Role, ignoreCase: true),
             IsActive = true,
+            FirstName = request.FirstName,
+            LastName = request.LastName,
+            PhoneNumber = request.PhoneNumber,
+            Bio = request.Bio,
             CreatedAt = DateTime.UtcNow,
             UpdatedAt = DateTime.UtcNow
         };
 
         await userRepository.AddAsync(user, ct);
-        return Ok(new UserDto(user.Id, user.Username, user.Email, user.Role.ToString()));
+        return Ok(new UserDto(user.Id, user.Username, user.Email, user.Role.ToString(), user.ProfilePictureBase64));
     }
 
     [HttpPut("users/{id:guid}")]
@@ -70,6 +74,10 @@ public class AdminController(
             ? Enum.Parse<UserRole>(request.Role, ignoreCase: true)
             : user.Role;
         user.IsActive = request.IsActive ?? user.IsActive;
+        user.FirstName = request.FirstName ?? user.FirstName;
+        user.LastName = request.LastName ?? user.LastName;
+        user.PhoneNumber = request.PhoneNumber ?? user.PhoneNumber;
+        user.Bio = request.Bio ?? user.Bio;
         user.UpdatedAt = DateTime.UtcNow;
 
         if (!string.IsNullOrEmpty(request.Password))
@@ -80,7 +88,7 @@ public class AdminController(
         }
 
         await userRepository.UpdateAsync(user, ct);
-        return Ok(new UserDto(user.Id, user.Username, user.Email, user.Role.ToString()));
+        return Ok(new UserDto(user.Id, user.Username, user.Email, user.Role.ToString(), user.ProfilePictureBase64));
     }
 
     [HttpDelete("users/{id:guid}")]
@@ -94,5 +102,12 @@ public class AdminController(
     }
 }
 
-public record CreateUserRequest(string Username, string Email, string Password, string Role = "User");
-public record UpdateUserRequest(string? Email, string? Password, string? Role, bool? IsActive);
+public record CreateUserRequest(
+    string Username, string Email, string Password, string Role = "User",
+    string? FirstName = null, string? LastName = null,
+    string? PhoneNumber = null, string? Bio = null);
+
+public record UpdateUserRequest(
+    string? Email, string? Password, string? Role, bool? IsActive,
+    string? FirstName = null, string? LastName = null,
+    string? PhoneNumber = null, string? Bio = null);

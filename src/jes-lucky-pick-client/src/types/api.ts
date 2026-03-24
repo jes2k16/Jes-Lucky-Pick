@@ -60,6 +60,39 @@ export interface PredictionResponse {
   reasoning: string;
 }
 
+export interface PredictionMatchInfo {
+  drawDate: string;
+  drawNumbers: number[];
+  matchedCount: number;
+  matchPercentage: number;
+}
+
+export interface PredictionHistoryItem {
+  id: string;
+  numbers: number[];
+  confidenceScore: number;
+  strategy: string;
+  reasoning: string;
+  createdAt: string;
+  matchInfo: PredictionMatchInfo | null;
+}
+
+export interface LastDrawInfoDto {
+  drawDate: string;
+  numbers: number[];
+  jackpotAmount: number | null;
+  winnersCount: number | null;
+}
+
+export interface GameScheduleDto {
+  drawDays: string;
+}
+
+export interface DrawContextDto {
+  lastDraw: LastDrawInfoDto | null;
+  schedule: GameScheduleDto;
+}
+
 export interface LoginRequest {
   username: string;
   password: string;
@@ -75,4 +108,47 @@ export interface UserDto {
   username: string;
   email: string;
   role: string;
+  profilePictureBase64: string | null;
+  firstName: string | null;
+  lastName: string | null;
+  phoneNumber: string | null;
+  bio: string | null;
+}
+
+export interface ProfileResponse {
+  id: string;
+  username: string;
+  email: string;
+  firstName: string | null;
+  lastName: string | null;
+  phoneNumber: string | null;
+  bio: string | null;
+  profilePictureBase64: string | null;
+}
+
+export interface UpdateProfileRequest {
+  firstName: string | null;
+  lastName: string | null;
+  phoneNumber: string | null;
+  bio: string | null;
+}
+
+export interface AiSettingsResponse {
+  isEnabled: boolean;
+  model: string;
+}
+
+export interface UpdateAiSettingsRequest {
+  isEnabled?: boolean;
+  model?: string;
+}
+
+export interface AiModelOption {
+  id: string;
+  displayName: string;
+}
+
+export interface AiTestResult {
+  success: boolean;
+  message: string;
 }

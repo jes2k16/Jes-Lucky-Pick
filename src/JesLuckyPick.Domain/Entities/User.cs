@@ -12,6 +12,11 @@ public class User
     public UserRole Role { get; set; }
     public bool IsActive { get; set; }
     public DateTime? LastLoginAt { get; set; }
+    public string? FirstName { get; set; }
+    public string? LastName { get; set; }
+    public string? PhoneNumber { get; set; }
+    public string? Bio { get; set; }
+    public string? ProfilePictureBase64 { get; set; }
     public DateTime CreatedAt { get; set; }
     public DateTime UpdatedAt { get; set; }
 

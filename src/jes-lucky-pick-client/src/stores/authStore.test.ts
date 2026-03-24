@@ -13,7 +13,7 @@ describe("authStore", () => {
   });
 
   it("sets user and marks authenticated", () => {
-    const user = { id: "1", username: "admin", email: "admin@test.com", role: "Admin" };
+    const user = { id: "1", username: "admin", email: "admin@test.com", role: "Admin", profilePictureBase64: null, firstName: null, lastName: null, phoneNumber: null, bio: null };
     useAuthStore.getState().setUser(user);
 
     const state = useAuthStore.getState();
@@ -22,7 +22,7 @@ describe("authStore", () => {
   });
 
   it("clears user on logout", () => {
-    const user = { id: "1", username: "admin", email: "admin@test.com", role: "Admin" };
+    const user = { id: "1", username: "admin", email: "admin@test.com", role: "Admin", profilePictureBase64: null, firstName: null, lastName: null, phoneNumber: null, bio: null };
     useAuthStore.getState().setUser(user);
     useAuthStore.getState().logout();
 

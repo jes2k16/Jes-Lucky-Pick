@@ -7,3 +7,18 @@ public record PredictionResponse(
     decimal ConfidenceScore,
     string Strategy,
     string Reasoning);
+
+public record PredictionHistoryItem(
+    Guid Id,
+    short[] Numbers,
+    decimal ConfidenceScore,
+    string Strategy,
+    string Reasoning,
+    DateTime CreatedAt,
+    PredictionMatchInfo? MatchInfo);
+
+public record PredictionMatchInfo(
+    DateTime DrawDate,
+    short[] DrawNumbers,
+    int MatchedCount,
+    decimal MatchPercentage);

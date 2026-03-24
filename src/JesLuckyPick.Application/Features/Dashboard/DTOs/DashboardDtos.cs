@@ -7,7 +7,7 @@ public record DashboardStatsDto(
     int MostFrequentNumber,
     int MostFrequentCount,
     decimal? LastJackpot,
-    DateOnly? LastDrawDate,
+    DateTime? LastDrawDate,
     int DaysSinceLastDraw);
 
 public record DashboardDto(DashboardStatsDto Stats, List<DrawDto> RecentDraws);

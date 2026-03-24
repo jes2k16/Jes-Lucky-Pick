@@ -47,6 +47,7 @@ if (app.Environment.IsDevelopment())
 }
 
 app.UseMiddleware<ExceptionHandlingMiddleware>();
+
 app.UseHttpsRedirection();
 app.UseAuthentication();
 app.UseAuthorization();
@@ -55,5 +56,7 @@ app.MapDrawEndpoints();
 app.MapAnalysisEndpoints();
 app.MapDashboardEndpoints();
 app.MapPredictionEndpoints();
+app.MapProfileEndpoints();
+app.MapSettingsEndpoints();
 
 app.Run();

@@ -79,7 +79,7 @@ public class AuthController(
 
         return Ok(new LoginResponse(
             accessToken,
-            new UserDto(user.Id, user.Username, user.Email, user.Role.ToString())));
+            new UserDto(user.Id, user.Username, user.Email, user.Role.ToString(), user.ProfilePictureBase64, user.FirstName, user.LastName, user.PhoneNumber, user.Bio)));
     }
 
     [HttpPost("refresh")]

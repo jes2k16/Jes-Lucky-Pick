@@ -1,10 +1,12 @@
 using JesLuckyPick.Application.Common.Interfaces;
 using JesLuckyPick.Domain.Interfaces;
 using JesLuckyPick.Infrastructure.AI.Services;
+using JesLuckyPick.Infrastructure.External;
 using JesLuckyPick.Infrastructure.Identity;
 using JesLuckyPick.Infrastructure.Persistence;
 using JesLuckyPick.Infrastructure.Persistence.Repositories;
 using JesLuckyPick.Infrastructure.Persistence.Seeding;
+using JesLuckyPick.Infrastructure.Security;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
@@ -23,11 +25,15 @@ public static class DependencyInjection
         services.AddScoped<IUserRepository, UserRepository>();
         services.AddScoped<IPredictionRepository, PredictionRepository>();
         services.AddScoped<ILottoGameRepository, LottoGameRepository>();
+        services.AddScoped<IAppSettingRepository, AppSettingRepository>();
 
         services.AddSingleton<IPasswordHasher, Argon2PasswordHasher>();
         services.AddSingleton<ITokenService, JwtTokenService>();
+        services.AddSingleton<IEncryptionService, AesEncryptionService>();
+        services.AddScoped<IAiPredictionService, ClaudeAiPredictionService>();
         services.AddScoped<DatabaseSeeder>();
         services.AddScoped<PredictionOrchestratorService>();
+        services.AddHttpClient<IDrawFetchService, PcsoDrawFetchService>();
 
         return services;
     }

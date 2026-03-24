@@ -1,5 +1,12 @@
 import "@testing-library/jest-dom/vitest";
 
+// Polyfill ResizeObserver for Radix UI components (Switch, etc.)
+global.ResizeObserver = class ResizeObserver {
+  observe() {}
+  unobserve() {}
+  disconnect() {}
+};
+
 Object.defineProperty(window, "matchMedia", {
   writable: true,
   value: (query: string) => ({

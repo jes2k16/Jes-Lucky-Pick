@@ -1,10 +1,10 @@
 import { cn } from "@/lib/utils";
 
 const colorMap: Record<string, string> = {
-  "1-10": "bg-red-500",
-  "11-20": "bg-orange-500",
-  "21-30": "bg-green-500",
-  "31-42": "bg-blue-500",
+  "1-10": "bg-red-700",
+  "11-20": "bg-orange-700",
+  "21-30": "bg-green-700",
+  "31-42": "bg-blue-700",
 };
 
 function getColor(num: number) {

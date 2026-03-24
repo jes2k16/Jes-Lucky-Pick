@@ -16,6 +16,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { cn } from "@/lib/utils";
 import type { UserDto } from "@/types/api";
 
 interface UserFormDialogProps {
@@ -28,6 +29,10 @@ interface UserFormDialogProps {
     password?: string;
     role: string;
     isActive?: boolean;
+    firstName?: string;
+    lastName?: string;
+    phoneNumber?: string;
+    bio?: string;
   }) => void;
   isLoading: boolean;
 }
@@ -45,6 +50,10 @@ export function UserFormDialog({
   const [password, setPassword] = useState("");
   const [role, setRole] = useState("User");
   const [isActive, setIsActive] = useState(true);
+  const [firstName, setFirstName] = useState("");
+  const [lastName, setLastName] = useState("");
+  const [phoneNumber, setPhoneNumber] = useState("");
+  const [bio, setBio] = useState("");
 
   useEffect(() => {
     if (user) {
@@ -53,12 +62,20 @@ export function UserFormDialog({
       setPassword("");
       setRole(user.role);
       setIsActive(true);
+      setFirstName(user.firstName ?? "");
+      setLastName(user.lastName ?? "");
+      setPhoneNumber(user.phoneNumber ?? "");
+      setBio(user.bio ?? "");
     } else {
       setUsername("");
       setEmail("");
       setPassword("");
       setRole("User");
       setIsActive(true);
+      setFirstName("");
+      setLastName("");
+      setPhoneNumber("");
+      setBio("");
     }
   }, [user, open]);
 
@@ -70,15 +87,28 @@ export function UserFormDialog({
         password: password || undefined,
         role,
         isActive,
+        firstName: firstName || undefined,
+        lastName: lastName || undefined,
+        phoneNumber: phoneNumber || undefined,
+        bio: bio || undefined,
       });
     } else {
-      onSubmit({ username, email, password, role });
+      onSubmit({
+        username,
+        email,
+        password,
+        role,
+        firstName: firstName || undefined,
+        lastName: lastName || undefined,
+        phoneNumber: phoneNumber || undefined,
+        bio: bio || undefined,
+      });
     }
   }
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent>
+      <DialogContent className="max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle>{isEdit ? "Edit User" : "Create User"}</DialogTitle>
         </DialogHeader>
@@ -117,6 +147,53 @@ export function UserFormDialog({
               minLength={6}
             />
           </div>
+
+          {/* Profile Fields */}
+          <div className="flex gap-4">
+            <div className="flex-1 space-y-2">
+              <Label htmlFor="firstName">First Name</Label>
+              <Input
+                id="firstName"
+                value={firstName}
+                onChange={(e) => setFirstName(e.target.value)}
+                placeholder="Enter first name"
+              />
+            </div>
+            <div className="flex-1 space-y-2">
+              <Label htmlFor="lastName">Last Name</Label>
+              <Input
+                id="lastName"
+                value={lastName}
+                onChange={(e) => setLastName(e.target.value)}
+                placeholder="Enter last name"
+              />
+            </div>
+          </div>
+          <div className="space-y-2">
+            <Label htmlFor="phoneNumber">Phone Number</Label>
+            <Input
+              id="phoneNumber"
+              value={phoneNumber}
+              onChange={(e) => setPhoneNumber(e.target.value)}
+              placeholder="Enter phone number"
+            />
+          </div>
+          <div className="space-y-2">
+            <Label htmlFor="bio">Bio</Label>
+            <textarea
+              id="bio"
+              value={bio}
+              onChange={(e) => setBio(e.target.value)}
+              placeholder="Short bio"
+              rows={2}
+              className={cn(
+                "w-full min-w-0 rounded-md border border-input bg-transparent px-3 py-2 text-base shadow-xs transition-[color,box-shadow] outline-none placeholder:text-muted-foreground md:text-sm dark:bg-input/30",
+                "focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50",
+                "resize-none"
+              )}
+            />
+          </div>
+
           <div className="space-y-2">
             <Label htmlFor="role">Role</Label>
             <Select value={role} onValueChange={setRole}>

@@ -6,6 +6,10 @@ export interface CreateUserRequest {
   email: string;
   password: string;
   role?: string;
+  firstName?: string;
+  lastName?: string;
+  phoneNumber?: string;
+  bio?: string;
 }
 
 export interface UpdateUserRequest {
@@ -13,6 +17,10 @@ export interface UpdateUserRequest {
   password?: string;
   role?: string;
   isActive?: boolean;
+  firstName?: string;
+  lastName?: string;
+  phoneNumber?: string;
+  bio?: string;
 }
 
 export async function fetchUsers(page: number, pageSize: number) {

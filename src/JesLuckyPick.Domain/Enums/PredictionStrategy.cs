@@ -6,5 +6,6 @@ public enum PredictionStrategy
     HotCold,
     Gap,
     AiWeighted,
-    Combined
+    Combined,
+    ClaudeAi
 }

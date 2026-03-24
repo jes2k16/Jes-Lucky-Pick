@@ -10,22 +10,22 @@ describe("NumberBall", () => {
 
   it("applies red color for numbers 1-10", () => {
     const { container } = render(<NumberBall number={5} />);
-    expect(container.firstChild).toHaveClass("bg-red-500");
+    expect(container.firstChild).toHaveClass("bg-red-700");
   });
 
   it("applies orange color for numbers 11-20", () => {
     const { container } = render(<NumberBall number={15} />);
-    expect(container.firstChild).toHaveClass("bg-orange-500");
+    expect(container.firstChild).toHaveClass("bg-orange-700");
   });
 
   it("applies green color for numbers 21-30", () => {
     const { container } = render(<NumberBall number={25} />);
-    expect(container.firstChild).toHaveClass("bg-green-500");
+    expect(container.firstChild).toHaveClass("bg-green-700");
   });
 
   it("applies blue color for numbers 31-42", () => {
     const { container } = render(<NumberBall number={35} />);
-    expect(container.firstChild).toHaveClass("bg-blue-500");
+    expect(container.firstChild).toHaveClass("bg-blue-700");
   });
 
   it("applies small size classes", () => {
@@ -45,16 +45,16 @@ describe("NumberBall", () => {
 
   it("applies boundary color correctly for number 10", () => {
     const { container } = render(<NumberBall number={10} />);
-    expect(container.firstChild).toHaveClass("bg-red-500");
+    expect(container.firstChild).toHaveClass("bg-red-700");
   });
 
   it("applies boundary color correctly for number 11", () => {
     const { container } = render(<NumberBall number={11} />);
-    expect(container.firstChild).toHaveClass("bg-orange-500");
+    expect(container.firstChild).toHaveClass("bg-orange-700");
   });
 
   it("applies boundary color correctly for number 42", () => {
     const { container } = render(<NumberBall number={42} />);
-    expect(container.firstChild).toHaveClass("bg-blue-500");
+    expect(container.firstChild).toHaveClass("bg-blue-700");
   });
 });

@@ -32,7 +32,7 @@ public static class DashboardEndpoints
 
             var latest = allDraws.LastOrDefault();
             var daysSinceLast = latest is not null
-                ? DateOnly.FromDateTime(DateTime.UtcNow).DayNumber - latest.DrawDate.DayNumber
+                ? (DateTime.UtcNow - latest.DrawDate).Days
                 : 0;
 
             return Results.Ok(new DashboardStatsDto(

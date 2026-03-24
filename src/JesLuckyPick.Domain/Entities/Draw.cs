@@ -4,7 +4,7 @@ public class Draw
 {
     public Guid Id { get; set; }
     public Guid GameId { get; set; }
-    public DateOnly DrawDate { get; set; }
+    public DateTime DrawDate { get; set; }
     public short DayOfWeek { get; set; }
     public short Number1 { get; set; }
     public short Number2 { get; set; }

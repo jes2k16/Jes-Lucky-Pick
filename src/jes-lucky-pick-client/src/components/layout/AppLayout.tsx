@@ -10,6 +10,8 @@ import {
   Moon,
   Sun,
   ChevronsUpDown,
+  User,
+  Settings,
 } from "lucide-react";
 import { useAuthStore } from "@/stores/authStore";
 import { useUiStore } from "@/stores/uiStore";
@@ -139,18 +141,32 @@ export function AppLayout() {
                 })}
 
                 {user?.role === "Admin" && (
-                  <SidebarMenuItem>
-                    <SidebarMenuButton
-                      asChild
-                      isActive={location.pathname === "/admin"}
-                      tooltip="Admin"
-                    >
-                      <NavLink to="/admin">
-                        <Shield />
-                        <span>Admin</span>
-                      </NavLink>
-                    </SidebarMenuButton>
-                  </SidebarMenuItem>
+                  <>
+                    <SidebarMenuItem>
+                      <SidebarMenuButton
+                        asChild
+                        isActive={location.pathname === "/admin"}
+                        tooltip="Admin"
+                      >
+                        <NavLink to="/admin">
+                          <Shield />
+                          <span>Admin</span>
+                        </NavLink>
+                      </SidebarMenuButton>
+                    </SidebarMenuItem>
+                    <SidebarMenuItem>
+                      <SidebarMenuButton
+                        asChild
+                        isActive={location.pathname === "/admin/settings"}
+                        tooltip="Settings"
+                      >
+                        <NavLink to="/admin/settings">
+                          <Settings />
+                          <span>Settings</span>
+                        </NavLink>
+                      </SidebarMenuButton>
+                    </SidebarMenuItem>
+                  </>
                 )}
               </SidebarMenu>
             </SidebarGroupContent>
@@ -184,11 +200,19 @@ export function AppLayout() {
                     size="lg"
                     tooltip={user?.username ?? "User"}
                   >
-                    <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-sidebar-accent text-sidebar-accent-foreground">
-                      <span className="text-xs font-semibold">
-                        {user?.username?.charAt(0).toUpperCase() ?? "U"}
-                      </span>
-                    </div>
+                    {user?.profilePictureBase64 ? (
+                      <img
+                        src={user.profilePictureBase64}
+                        alt="Avatar"
+                        className="h-8 w-8 rounded-lg object-cover"
+                      />
+                    ) : (
+                      <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-sidebar-accent text-sidebar-accent-foreground">
+                        <span className="text-xs font-semibold">
+                          {user?.username?.charAt(0).toUpperCase() ?? "U"}
+                        </span>
+                      </div>
+                    )}
                     <div className="grid flex-1 text-left text-sm leading-tight">
                       <span className="truncate font-semibold">
                         {user?.username}
@@ -215,6 +239,11 @@ export function AppLayout() {
                       </p>
                     </div>
                   </DropdownMenuLabel>
+                  <DropdownMenuSeparator />
+                  <DropdownMenuItem onClick={() => navigate("/profile")}>
+                    <User />
+                    Profile
+                  </DropdownMenuItem>
                   <DropdownMenuSeparator />
                   <DropdownMenuItem onClick={handleLogout}>
                     <LogOut />

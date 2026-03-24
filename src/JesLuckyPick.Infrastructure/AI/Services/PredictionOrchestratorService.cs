@@ -1,11 +1,14 @@
 using System.Security.Cryptography;
+using JesLuckyPick.Application.Common.Interfaces;
 using JesLuckyPick.Application.Features.Predictions.DTOs;
 using JesLuckyPick.Domain.Entities;
 using JesLuckyPick.Domain.Interfaces;
 
 namespace JesLuckyPick.Infrastructure.AI.Services;
 
-public class PredictionOrchestratorService(IDrawRepository drawRepository)
+public class PredictionOrchestratorService(
+    IDrawRepository drawRepository,
+    IAiPredictionService aiPredictionService)
 {
     public async Task<PredictionResponse> GeneratePredictionAsync(
         Guid gameId, string strategy, CancellationToken ct = default)
@@ -22,8 +25,26 @@ public class PredictionOrchestratorService(IDrawRepository drawRepository)
             "gap" => GenerateGapPick(draws),
             "aiweighted" or "ai_weighted" => GenerateWeightedPick(draws),
             "combined" => GenerateCombinedPick(draws),
+            "claudeai" or "claude_ai" => await GenerateClaudeAiPick(draws, ct),
             _ => GenerateCombinedPick(draws)
         };
+    }
+
+    private async Task<PredictionResponse> GenerateClaudeAiPick(
+        IReadOnlyList<Draw> draws, CancellationToken ct)
+    {
+        try
+        {
+            if (!await aiPredictionService.IsConfiguredAsync(ct))
+                return GenerateCombinedPick(draws);
+
+            return await aiPredictionService.GeneratePredictionAsync(draws, ct);
+        }
+        catch
+        {
+            // Graceful fallback to Combined strategy on any AI failure
+            return GenerateCombinedPick(draws);
+        }
     }
 
     private static PredictionResponse GenerateFrequencyPick(IReadOnlyList<Draw> draws)
