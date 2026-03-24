@@ -118,8 +118,13 @@ public class AuthController(
 
         SetRefreshTokenCookie(newRefreshToken);
 
-        var accessToken = tokenService.GenerateAccessToken(storedToken.User);
-        return Ok(new { accessToken });
+        var user = storedToken.User;
+        var accessToken = tokenService.GenerateAccessToken(user);
+        return Ok(new LoginResponse(
+            accessToken,
+            new UserDto(user.Id, user.Username, user.Email, user.Role.ToString(),
+                user.ProfilePictureBase64, user.FirstName, user.LastName,
+                user.PhoneNumber, user.Bio)));
     }
 
     [HttpPost("logout")]

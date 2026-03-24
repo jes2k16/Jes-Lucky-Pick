@@ -9,10 +9,23 @@ import { AdminPage } from "@/features/admin/pages/AdminPage";
 import { SettingsPage } from "@/features/admin/pages/SettingsPage";
 import { ProfilePage } from "@/features/profile/pages/ProfilePage";
 import { useAuthStore } from "@/stores/authStore";
-import type { ReactNode } from "react";
+import { useEffect, type ReactNode } from "react";
 
 function ProtectedRoute({ children }: { children: ReactNode }) {
-  const { isAuthenticated } = useAuthStore();
+  const { isAuthenticated, isInitialized, initialize } = useAuthStore();
+
+  useEffect(() => {
+    initialize();
+  }, [initialize]);
+
+  if (!isInitialized) {
+    return (
+      <div className="flex min-h-screen items-center justify-center">
+        <div className="h-8 w-8 animate-spin rounded-full border-4 border-primary border-t-transparent" />
+      </div>
+    );
+  }
+
   if (!isAuthenticated) return <Navigate to="/login" replace />;
   return <>{children}</>;
 }
