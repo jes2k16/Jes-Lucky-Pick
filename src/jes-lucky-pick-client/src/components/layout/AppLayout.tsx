@@ -12,6 +12,8 @@ import {
   ChevronsUpDown,
   User,
   Settings,
+  BrainCircuit,
+  MessageSquare,
 } from "lucide-react";
 import { useAuthStore } from "@/stores/authStore";
 import { useUiStore } from "@/stores/uiStore";
@@ -151,6 +153,30 @@ export function AppLayout() {
                         <NavLink to="/admin">
                           <Shield />
                           <span>Admin</span>
+                        </NavLink>
+                      </SidebarMenuButton>
+                    </SidebarMenuItem>
+                    <SidebarMenuItem>
+                      <SidebarMenuButton
+                        asChild
+                        isActive={location.pathname === "/model-training"}
+                        tooltip="Model Training"
+                      >
+                        <NavLink to="/model-training">
+                          <BrainCircuit />
+                          <span>Model Training</span>
+                        </NavLink>
+                      </SidebarMenuButton>
+                    </SidebarMenuItem>
+                    <SidebarMenuItem>
+                      <SidebarMenuButton
+                        asChild
+                        isActive={location.pathname === "/ai-chatbot"}
+                        tooltip="AI Chatbot"
+                      >
+                        <NavLink to="/ai-chatbot">
+                          <MessageSquare />
+                          <span>AI Chatbot</span>
                         </NavLink>
                       </SidebarMenuButton>
                     </SidebarMenuItem>

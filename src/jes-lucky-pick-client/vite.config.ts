@@ -18,6 +18,13 @@ export default defineConfig({
         changeOrigin: true,
         secure: false,
       },
+      "/hubs": {
+        target: "http://localhost:5026", //for client
+        //target: "https://localhost:7255", //for vs
+        changeOrigin: true,
+        secure: false,
+        ws: true,
+      },
     },
   },
 });

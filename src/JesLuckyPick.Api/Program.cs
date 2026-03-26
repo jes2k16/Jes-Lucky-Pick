@@ -1,5 +1,6 @@
 using System.Text;
 using JesLuckyPick.Api.Endpoints;
+using JesLuckyPick.Api.Hubs;
 using JesLuckyPick.Api.Middleware;
 using JesLuckyPick.Infrastructure;
 using JesLuckyPick.Infrastructure.Persistence;
@@ -29,7 +30,19 @@ builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
             ValidateLifetime = true,
             ClockSkew = TimeSpan.Zero
         };
+        options.Events = new JwtBearerEvents
+        {
+            OnMessageReceived = context =>
+            {
+                var accessToken = context.Request.Query["access_token"];
+                if (!string.IsNullOrEmpty(accessToken) &&
+                    context.HttpContext.Request.Path.StartsWithSegments("/hubs"))
+                    context.Token = accessToken;
+                return Task.CompletedTask;
+            }
+        };
     });
+builder.Services.AddSignalR();
 builder.Services.AddAuthorization();
 
 var app = builder.Build();
@@ -58,5 +71,8 @@ app.MapDashboardEndpoints();
 app.MapPredictionEndpoints();
 app.MapProfileEndpoints();
 app.MapSettingsEndpoints();
+app.MapHub<TerminalHub>("/hubs/terminal");
+app.MapHub<GameHub>("/hubs/game");
+app.MapAgentPromptEndpoints();
 
 app.Run();

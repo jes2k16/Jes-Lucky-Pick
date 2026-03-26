@@ -20,6 +20,7 @@ public class DatabaseSeeder(
         await SeedDrawsFromCsvAsync(ct);
         await SeedDefaultAdminAsync(ct);
         await SeedDefaultSettingsAsync(ct);
+        await SeedAgentPromptsAsync(ct);
     }
 
     private async Task SeedDefaultAdminAsync(CancellationToken ct)
@@ -183,5 +184,107 @@ public class DatabaseSeeder(
         await context.AppSettings.AddRangeAsync(defaults, ct);
         await context.SaveChangesAsync(ct);
         logger.LogInformation("Seeded default AI settings");
+    }
+
+    private async Task SeedAgentPromptsAsync(CancellationToken ct)
+    {
+        if (await context.AgentPrompts.AnyAsync(ct))
+            return;
+
+        const string defaultModel = "claude-haiku-4-5-20251001";
+        var now = DateTime.UtcNow;
+
+        var prompts = new List<AgentPrompt>
+        {
+            new()
+            {
+                Id = Guid.NewGuid(), Role = "Manager", Personality = null, Model = defaultModel,
+                IsActive = true, CreatedAt = now, UpdatedAt = now,
+                SystemPrompt = """
+                    You are a Manager in a number guessing competition.
+                    Your team of Experts is trying to guess a secret {combinationSize}-number combination from range {numberRange}.
+
+                    Round {roundNumber} results:
+                    {expertResults}
+
+                    Standard rule: Experts with round score < 2 stars are eliminated.
+                    You may also eliminate underperformers at your discretion.
+
+                    Respond with JSON only: { "eliminate": ["expertId1"], "guidance": "optional hint" }
+                    """
+            },
+            new()
+            {
+                Id = Guid.NewGuid(), Role = "Expert", Personality = "Scanner", Model = defaultModel,
+                IsActive = true, CreatedAt = now, UpdatedAt = now,
+                SystemPrompt = """
+                    You are a number guessing Expert with the "Scanner" personality.
+                    You prioritize maximum coverage — testing as many unique numbers as possible across tries.
+
+                    Game: guess {combinationSize} unique numbers from range {numberRange}.
+                    Round {roundNumber}, Try {tryNumber} of 6.
+
+                    Your confidence map (higher = more likely correct): {confidenceMap}
+                    Recent history: {tryHistory}
+
+                    Pick {combinationSize} unique numbers. Respond with JSON array only: [n1, n2, n3, n4, n5, n6]
+                    """
+            },
+            new()
+            {
+                Id = Guid.NewGuid(), Role = "Expert", Personality = "Sticky", Model = defaultModel,
+                IsActive = true, CreatedAt = now, UpdatedAt = now,
+                SystemPrompt = """
+                    You are a number guessing Expert with the "Sticky" personality.
+                    You lock in numbers from high-scoring tries and only swap the remaining slots.
+
+                    Game: guess {combinationSize} unique numbers from range {numberRange}.
+                    Round {roundNumber}, Try {tryNumber} of 6.
+
+                    Your confidence map (higher = more likely correct): {confidenceMap}
+                    Recent history: {tryHistory}
+
+                    Pick {combinationSize} unique numbers. Respond with JSON array only: [n1, n2, n3, n4, n5, n6]
+                    """
+            },
+            new()
+            {
+                Id = Guid.NewGuid(), Role = "Expert", Personality = "Gambler", Model = defaultModel,
+                IsActive = true, CreatedAt = now, UpdatedAt = now,
+                SystemPrompt = """
+                    You are a number guessing Expert with the "Gambler" personality.
+                    You make large random swaps between tries, hoping for a lucky breakthrough.
+
+                    Game: guess {combinationSize} unique numbers from range {numberRange}.
+                    Round {roundNumber}, Try {tryNumber} of 6.
+
+                    Your confidence map (higher = more likely correct): {confidenceMap}
+                    Recent history: {tryHistory}
+
+                    Pick {combinationSize} unique numbers. Respond with JSON array only: [n1, n2, n3, n4, n5, n6]
+                    """
+            },
+            new()
+            {
+                Id = Guid.NewGuid(), Role = "Expert", Personality = "Analyst", Model = defaultModel,
+                IsActive = true, CreatedAt = now, UpdatedAt = now,
+                SystemPrompt = """
+                    You are a number guessing Expert with the "Analyst" personality.
+                    You divide the number range into sections and methodically test each section.
+
+                    Game: guess {combinationSize} unique numbers from range {numberRange}.
+                    Round {roundNumber}, Try {tryNumber} of 6.
+
+                    Your confidence map (higher = more likely correct): {confidenceMap}
+                    Recent history: {tryHistory}
+
+                    Pick {combinationSize} unique numbers. Respond with JSON array only: [n1, n2, n3, n4, n5, n6]
+                    """
+            }
+        };
+
+        await context.AgentPrompts.AddRangeAsync(prompts, ct);
+        await context.SaveChangesAsync(ct);
+        logger.LogInformation("Seeded {Count} agent prompts", prompts.Count);
     }
 }

@@ -7,6 +7,8 @@ import { LuckyPickPage } from "@/features/lucky-pick/pages/LuckyPickPage";
 import { AnalysisPage } from "@/features/analysis/pages/AnalysisPage";
 import { AdminPage } from "@/features/admin/pages/AdminPage";
 import { SettingsPage } from "@/features/admin/pages/SettingsPage";
+import { AiTrainingPage } from "@/features/ai-training/pages/AiTrainingPage";
+import { AiChatbotPage } from "@/features/ai-training/pages/AiChatbotPage";
 import { ProfilePage } from "@/features/profile/pages/ProfilePage";
 import { useAuthStore } from "@/stores/authStore";
 import { useEffect, type ReactNode } from "react";
@@ -50,6 +52,8 @@ export function AppRoutes() {
           <Route path="analysis" element={<AnalysisPage />} />
           <Route path="admin" element={<AdminPage />} />
           <Route path="admin/settings" element={<SettingsPage />} />
+          <Route path="model-training" element={<AiTrainingPage />} />
+          <Route path="ai-chatbot" element={<AiChatbotPage />} />
           <Route path="profile" element={<ProfilePage />} />
         </Route>
       </Routes>
