@@ -8,7 +8,10 @@
       "Bash(dotnet new:*)",
       "Bash(mkdir -p src tests)",
       "Bash(dotnet sln:*)",
-      "Bash(where claude:*)"
+      "Bash(where claude:*)",
+      "Bash(npx tsc:*)",
+      "Bash(npx vitest:*)",
+      "Bash(dotnet test:*)"
     ]
   }
 }

@@ -78,7 +78,7 @@ export function GameLiveScreen({
             variant="outline"
             size="sm"
             onClick={isPaused ? onResume : onPause}
-            className="gap-1.5"
+            className="gap-1.5 text-foreground"
           >
             {isPaused ? (
               <>
@@ -94,7 +94,7 @@ export function GameLiveScreen({
             variant="ghost"
             size="sm"
             onClick={onReset}
-            className="gap-1.5"
+            className="gap-1.5 text-foreground"
           >
             <RotateCcw className="h-3.5 w-3.5" /> Reset
           </Button>
@@ -115,7 +115,7 @@ export function GameLiveScreen({
           {settings.gameMode === "ai-agent" ? "AI Agent" : "Simulation"}
         </Badge>
         <span className="text-muted-foreground">|</span>
-        <span className="font-medium">
+        <span className="font-medium text-foreground">
           {LOTTO_GAMES[settings.lottoGame]?.label ?? `${settings.combinationSize} from ${settings.numberRangeMin}-${settings.numberRangeMax}`}
         </span>
         {settings.gameMode === "ai-agent" && (

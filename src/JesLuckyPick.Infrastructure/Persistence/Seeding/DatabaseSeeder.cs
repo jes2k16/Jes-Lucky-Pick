@@ -188,9 +188,6 @@ public class DatabaseSeeder(
 
     private async Task SeedAgentPromptsAsync(CancellationToken ct)
     {
-        if (await context.AgentPrompts.AnyAsync(ct))
-            return;
-
         const string defaultModel = "claude-haiku-4-5-20251001";
         var now = DateTime.UtcNow;
 
@@ -218,16 +215,15 @@ public class DatabaseSeeder(
                 Id = Guid.NewGuid(), Role = "Expert", Personality = "Scanner", Model = defaultModel,
                 IsActive = true, CreatedAt = now, UpdatedAt = now,
                 SystemPrompt = """
-                    You are a number guessing Expert with the "Scanner" personality.
-                    You prioritize maximum coverage — testing as many unique numbers as possible across tries.
+                    Output ONLY a JSON integer array. No text, no explanation, no markdown.
 
-                    Game: guess {combinationSize} unique numbers from range {numberRange}.
+                    Task: pick {combinationSize} unique integers from {numberRange}.
+                    Strategy: maximize coverage — choose numbers not yet tested.
                     Round {roundNumber}, Try {tryNumber} of 6.
+                    Confidence scores (higher = more likely correct): {confidenceMap}
+                    Past guesses: {tryHistory}
 
-                    Your confidence map (higher = more likely correct): {confidenceMap}
-                    Recent history: {tryHistory}
-
-                    Pick {combinationSize} unique numbers. Respond with JSON array only: [n1, n2, n3, n4, n5, n6]
+                    Response format (nothing else): [n1, n2, n3, n4, n5, n6]
                     """
             },
             new()
@@ -235,16 +231,15 @@ public class DatabaseSeeder(
                 Id = Guid.NewGuid(), Role = "Expert", Personality = "Sticky", Model = defaultModel,
                 IsActive = true, CreatedAt = now, UpdatedAt = now,
                 SystemPrompt = """
-                    You are a number guessing Expert with the "Sticky" personality.
-                    You lock in numbers from high-scoring tries and only swap the remaining slots.
+                    Output ONLY a JSON integer array. No text, no explanation, no markdown.
 
-                    Game: guess {combinationSize} unique numbers from range {numberRange}.
+                    Task: pick {combinationSize} unique integers from {numberRange}.
+                    Strategy: keep numbers from high-scoring tries, swap only underperformers.
                     Round {roundNumber}, Try {tryNumber} of 6.
+                    Confidence scores (higher = more likely correct): {confidenceMap}
+                    Past guesses: {tryHistory}
 
-                    Your confidence map (higher = more likely correct): {confidenceMap}
-                    Recent history: {tryHistory}
-
-                    Pick {combinationSize} unique numbers. Respond with JSON array only: [n1, n2, n3, n4, n5, n6]
+                    Response format (nothing else): [n1, n2, n3, n4, n5, n6]
                     """
             },
             new()
@@ -252,16 +247,15 @@ public class DatabaseSeeder(
                 Id = Guid.NewGuid(), Role = "Expert", Personality = "Gambler", Model = defaultModel,
                 IsActive = true, CreatedAt = now, UpdatedAt = now,
                 SystemPrompt = """
-                    You are a number guessing Expert with the "Gambler" personality.
-                    You make large random swaps between tries, hoping for a lucky breakthrough.
+                    Output ONLY a JSON integer array. No text, no explanation, no markdown.
 
-                    Game: guess {combinationSize} unique numbers from range {numberRange}.
+                    Task: pick {combinationSize} unique integers from {numberRange}.
+                    Strategy: make large random swaps between tries to chase a lucky combination.
                     Round {roundNumber}, Try {tryNumber} of 6.
+                    Confidence scores (higher = more likely correct): {confidenceMap}
+                    Past guesses: {tryHistory}
 
-                    Your confidence map (higher = more likely correct): {confidenceMap}
-                    Recent history: {tryHistory}
-
-                    Pick {combinationSize} unique numbers. Respond with JSON array only: [n1, n2, n3, n4, n5, n6]
+                    Response format (nothing else): [n1, n2, n3, n4, n5, n6]
                     """
             },
             new()
@@ -269,22 +263,37 @@ public class DatabaseSeeder(
                 Id = Guid.NewGuid(), Role = "Expert", Personality = "Analyst", Model = defaultModel,
                 IsActive = true, CreatedAt = now, UpdatedAt = now,
                 SystemPrompt = """
-                    You are a number guessing Expert with the "Analyst" personality.
-                    You divide the number range into sections and methodically test each section.
+                    Output ONLY a JSON integer array. No text, no explanation, no markdown.
 
-                    Game: guess {combinationSize} unique numbers from range {numberRange}.
+                    Task: pick {combinationSize} unique integers from {numberRange}.
+                    Strategy: divide the range into sections and methodically test each section.
                     Round {roundNumber}, Try {tryNumber} of 6.
+                    Confidence scores (higher = more likely correct): {confidenceMap}
+                    Past guesses: {tryHistory}
 
-                    Your confidence map (higher = more likely correct): {confidenceMap}
-                    Recent history: {tryHistory}
-
-                    Pick {combinationSize} unique numbers. Respond with JSON array only: [n1, n2, n3, n4, n5, n6]
+                    Response format (nothing else): [n1, n2, n3, n4, n5, n6]
                     """
             }
         };
 
-        await context.AgentPrompts.AddRangeAsync(prompts, ct);
+        // Upsert: update existing prompts by role+personality, insert new ones
+        foreach (var prompt in prompts)
+        {
+            var existing = await context.AgentPrompts
+                .FirstOrDefaultAsync(p => p.Role == prompt.Role && p.Personality == prompt.Personality, ct);
+
+            if (existing == null)
+            {
+                await context.AgentPrompts.AddAsync(prompt, ct);
+            }
+            else
+            {
+                existing.SystemPrompt = prompt.SystemPrompt;
+                existing.UpdatedAt = now;
+            }
+        }
+
         await context.SaveChangesAsync(ct);
-        logger.LogInformation("Seeded {Count} agent prompts", prompts.Count);
+        logger.LogInformation("Upserted {Count} agent prompts", prompts.Count);
     }
 }

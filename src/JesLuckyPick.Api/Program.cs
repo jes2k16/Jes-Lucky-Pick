@@ -42,7 +42,12 @@ builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
             }
         };
     });
-builder.Services.AddSignalR();
+builder.Services.AddSignalR(options =>
+{
+    // Allow concurrent hub invocations per client so parallel concurrency modes work.
+    // Default is 1 (sequential queue), which prevents fully-parallel / parallel-per-manager.
+    options.MaximumParallelInvocationsPerClient = 50;
+});
 builder.Services.AddAuthorization();
 
 var app = builder.Build();

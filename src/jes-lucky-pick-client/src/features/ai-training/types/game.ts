@@ -2,7 +2,7 @@
 
 export type ExpertPersonality = "Scanner" | "Sticky" | "Gambler" | "Analyst";
 export type GameMode = "simulation" | "ai-agent";
-export type ConcurrencyMode = "sequential" | "parallel-per-manager" | "fully-parallel";
+export type ConcurrencyMode = "sequential" | "fully-parallel";
 export type GamePhase = "setup" | "running" | "paused" | "ended";
 export type GameResult = "winner_found" | "all_eliminated" | "time_up";
 export type ExpertStatus = "active" | "eliminated" | "winner";
@@ -47,7 +47,7 @@ export const DEFAULT_SETTINGS: GameSettings = {
   timeLimitMinutes: 5,
   simulationSpeedMs: 500,
   gameMode: "simulation",
-  concurrencyMode: "sequential",
+  concurrencyMode: "fully-parallel",
   model: "claude-haiku-4-5-20251001",
 };
 

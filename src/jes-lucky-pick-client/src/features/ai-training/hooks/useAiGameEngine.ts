@@ -126,7 +126,7 @@ export function useAiGameEngine(): GameEngine {
       timeLimitMinutes: 5,
       simulationSpeedMs: 500,
       gameMode: "ai-agent",
-      concurrencyMode: "sequential",
+      concurrencyMode: "fully-parallel",
       model: "claude-haiku-4-5-20251001",
     })
   );
@@ -202,7 +202,8 @@ export function useAiGameEngine(): GameEngine {
   );
 
   /**
-   * Core game loop — runs all experts sequentially through rounds.
+   * Core game loop — dispatches experts sequentially, parallel-per-manager,
+   * or fully-parallel depending on settings.concurrencyMode.
    */
   const runGameLoop = useCallback(
     async (managers: Manager[], settings: GameSettings) => {
@@ -225,155 +226,187 @@ export function useAiGameEngine(): GameEngine {
         managers: structuredClone(managers),
       }));
 
-      // eslint-disable-next-line no-constant-condition
-      while (true) {
-        if (cancelledRef.current || !runningRef.current) break;
+      /**
+       * Run all 6 tries for a single expert.
+       * Shared across all concurrency modes — safe to run in parallel
+       * because each expert mutates only its own object.
+       */
+      const runExpertAllTries = async (
+        expert: Expert,
+        manager: Manager,
+        round: number
+      ) => {
+        for (let tryNum = 1; tryNum <= 6; tryNum++) {
+          if (cancelledRef.current) return;
 
-        // Each expert gets 6 tries per round
-        for (const manager of managers) {
-          if (manager.status !== "active") continue;
+          // Wait while paused
+          while (!runningRef.current && !cancelledRef.current) {
+            await new Promise((r) => setTimeout(r, 500));
+          }
+          if (cancelledRef.current) return;
 
-          for (const expert of manager.experts) {
-            if (expert.status !== "active") continue;
+          setGameState((prev) => ({
+            ...prev,
+            currentExpertId: expert.id,
+            currentTry: tryNum,
+          }));
 
-            for (let tryNum = 1; tryNum <= 6; tryNum++) {
-              if (cancelledRef.current || !runningRef.current) return;
+          let guess: number[] | null = null;
+          try {
+            guess = await executeAiExpertTurn(
+              connection,
+              expert,
+              settings,
+              round,
+              tryNum
+            );
+          } catch (err) {
+            // Invocation error (e.g. server exception) — treat as AI failure, use fallback
+            setGameState((prev) => ({
+              ...prev,
+              log: addLog(
+                prev.log,
+                `AI Error (${expert.name}): ${err instanceof Error ? err.message : "Unknown error"}`,
+                "info"
+              ),
+            }));
+          }
 
-              // Wait if paused
-              while (!runningRef.current && !cancelledRef.current) {
-                await new Promise((r) => setTimeout(r, 500));
-              }
-              if (cancelledRef.current) return;
+          if (cancelledRef.current) return;
 
-              setGameState((prev) => ({
-                ...prev,
-                currentExpertId: expert.id,
-                currentTry: tryNum,
-              }));
+          // AI failed or threw — use fallback random guess
+          if (!guess) {
+            const fallback: number[] = [];
+            while (fallback.length < settings.combinationSize) {
+              const n =
+                Math.floor(
+                  Math.random() *
+                    (settings.numberRangeMax - settings.numberRangeMin + 1)
+                ) + settings.numberRangeMin;
+              if (!fallback.includes(n)) fallback.push(n);
+            }
+            const fStars = scoreGuess(fallback, manager.secretCombination);
+            const fResult: TryResult = {
+              round,
+              tryNumber: tryNum,
+              guess: fallback,
+              stars: fStars,
+              bestInRound: false,
+            };
+            expert.tryHistory.push(fResult);
+            expert.roundHistory.push(fResult);
+            if (fStars > expert.currentRoundScore)
+              expert.currentRoundScore = fStars;
 
-              // Call AI via SignalR
-              const guess = await executeAiExpertTurn(
-                connection,
-                expert,
-                settings,
-                currentRound,
-                tryNum
-              );
+            setGameState((prev) => ({
+              ...prev,
+              log: addLog(
+                prev.log,
+                `${expert.name} (${expert.personality}) → AI failed, fallback: ${"★".repeat(fStars)}${"☆".repeat(settings.combinationSize - fStars)} [${fallback.join(", ")}]`,
+                "score"
+              ),
+              managers: structuredClone(managers),
+            }));
+            continue;
+          }
 
-              if (!guess || cancelledRef.current) {
-                // AI failed — use a fallback random guess
-                if (!guess) {
-                  const fallback: number[] = [];
-                  while (fallback.length < settings.combinationSize) {
-                    const n =
-                      Math.floor(
-                        Math.random() *
-                          (settings.numberRangeMax - settings.numberRangeMin + 1)
-                      ) + settings.numberRangeMin;
-                    if (!fallback.includes(n)) fallback.push(n);
-                  }
-                  const stars = scoreGuess(fallback, manager.secretCombination);
-                  const tryResult: TryResult = {
-                    round: currentRound,
-                    tryNumber: tryNum,
-                    guess: fallback,
-                    stars,
-                    bestInRound: false,
-                  };
-                  expert.tryHistory.push(tryResult);
-                  expert.roundHistory.push(tryResult);
-                  if (stars > expert.currentRoundScore)
-                    expert.currentRoundScore = stars;
+          const stars = scoreGuess(guess, manager.secretCombination);
+          const tryResult: TryResult = {
+            round,
+            tryNumber: tryNum,
+            guess,
+            stars,
+            bestInRound: false,
+          };
+          expert.tryHistory.push(tryResult);
+          expert.roundHistory.push(tryResult);
+          if (stars > expert.currentRoundScore)
+            expert.currentRoundScore = stars;
 
-                  setGameState((prev) => ({
-                    ...prev,
-                    log: addLog(
-                      prev.log,
-                      `${expert.name} (${expert.personality}) → AI failed, fallback: ${"★".repeat(stars)}${"☆".repeat(settings.combinationSize - stars)} [${fallback.join(", ")}]`,
-                      "score"
-                    ),
-                    managers: structuredClone(managers),
-                  }));
-                  continue;
-                }
-                return;
-              }
+          const starStr =
+            "★".repeat(stars) + "☆".repeat(settings.combinationSize - stars);
 
-              const stars = scoreGuess(guess, manager.secretCombination);
-              const tryResult: TryResult = {
-                round: currentRound,
-                tryNumber: tryNum,
-                guess,
-                stars,
-                bestInRound: false,
-              };
-              expert.tryHistory.push(tryResult);
-              expert.roundHistory.push(tryResult);
-              if (stars > expert.currentRoundScore)
-                expert.currentRoundScore = stars;
-
-              const starStr =
-                "★".repeat(stars) +
-                "☆".repeat(settings.combinationSize - stars);
-
-              // Check win
-              if (stars >= 5) {
-                expert.status = "winner";
-                manager.status = "winner";
-                setGameState((prev) => ({
-                  ...prev,
-                  phase: "ended",
-                  result: "winner_found",
-                  currentExpertId: expert.id,
-                  managers: structuredClone(managers),
-                  winner: {
-                    managerId: manager.id,
-                    managerSecretCombination: manager.secretCombination,
-                    expertId: expert.id,
-                    expertName: expert.name,
-                    expertPersonality: expert.personality,
-                    winningGuess: guess,
-                    winningStars: stars,
-                    roundsPlayed: currentRound,
-                    totalTries: expert.tryHistory.length,
-                  },
-                  log: addLog(
-                    addLog(
-                      prev.log,
-                      `${expert.name} (${expert.personality}) → ${starStr} [${guess.join(", ")}]`,
-                      "score"
-                    ),
-                    `🏆 ${expert.name} scored ${stars}★! WINNER FOUND!`,
-                    "winner"
-                  ),
-                }));
-                clearTimer();
-                return;
-              }
-
-              setGameState((prev) => ({
-                ...prev,
-                log: addLog(
+          // Check win
+          if (stars >= 5) {
+            expert.status = "winner";
+            manager.status = "winner";
+            cancelledRef.current = true; // stop all other parallel tasks
+            clearTimer();
+            setGameState((prev) => ({
+              ...prev,
+              phase: "ended",
+              result: "winner_found",
+              currentExpertId: expert.id,
+              managers: structuredClone(managers),
+              winner: {
+                managerId: manager.id,
+                managerSecretCombination: manager.secretCombination,
+                expertId: expert.id,
+                expertName: expert.name,
+                expertPersonality: expert.personality,
+                winningGuess: guess,
+                winningStars: stars,
+                roundsPlayed: round,
+                totalTries: expert.tryHistory.length,
+              },
+              log: addLog(
+                addLog(
                   prev.log,
                   `${expert.name} (${expert.personality}) → ${starStr} [${guess.join(", ")}]`,
                   "score"
                 ),
-                managers: structuredClone(managers),
-              }));
+                `🏆 ${expert.name} scored ${stars}★! WINNER FOUND!`,
+                "winner"
+              ),
+            }));
+            return;
+          }
 
-              // Update confidence map based on result
-              for (const num of guess) {
-                if (stars > 0) {
-                  expert.confidenceMap[num] =
-                    (expert.confidenceMap[num] || 0) + stars * 0.1;
-                } else {
-                  expert.confidenceMap[num] =
-                    (expert.confidenceMap[num] || 0) - 0.3;
-                }
-              }
+          setGameState((prev) => ({
+            ...prev,
+            log: addLog(
+              prev.log,
+              `${expert.name} (${expert.personality}) → ${starStr} [${guess.join(", ")}]`,
+              "score"
+            ),
+            managers: structuredClone(managers),
+          }));
+
+          // Update confidence map
+          for (const num of guess) {
+            expert.confidenceMap[num] =
+              (expert.confidenceMap[num] || 0) + (stars > 0 ? stars * 0.1 : -0.3);
+          }
+        }
+      };
+
+      // eslint-disable-next-line no-constant-condition
+      while (true) {
+        if (cancelledRef.current) break;
+
+        // Dispatch experts based on concurrency mode
+        if (settings.concurrencyMode === "fully-parallel") {
+          // All active experts across all managers run simultaneously
+          const tasks = managers
+            .filter((m) => m.status === "active")
+            .flatMap((manager) =>
+              manager.experts
+                .filter((e) => e.status === "active")
+                .map((expert) => runExpertAllTries(expert, manager, currentRound))
+            );
+          await Promise.all(tasks);
+        } else {
+          // Sequential: one expert at a time
+          for (const manager of managers) {
+            if (manager.status !== "active" || cancelledRef.current) continue;
+            for (const expert of manager.experts) {
+              if (expert.status !== "active" || cancelledRef.current) continue;
+              await runExpertAllTries(expert, manager, currentRound);
             }
           }
         }
+
+        if (cancelledRef.current) break;
 
         // End of round — eliminations
         setGameState((prev) => ({

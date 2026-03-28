@@ -4,7 +4,7 @@ import type { ActivityLogEntry } from "../../types/game";
 
 const typeColors: Record<string, string> = {
   info: "text-muted-foreground",
-  score: "text-cyan-400",
+  score: "text-sky-400/80",
   elimination: "text-red-400",
   winner: "text-emerald-400",
   round: "text-amber-400",

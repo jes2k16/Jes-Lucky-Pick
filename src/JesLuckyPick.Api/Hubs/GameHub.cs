@@ -40,8 +40,16 @@ public class GameHub : Hub
     {
         var connectionId = Context.ConnectionId;
 
-        // Load prompt template from DB
-        var dbContext = Context.GetHttpContext()!.RequestServices.GetRequiredService<AppDbContext>();
+        // Create a new scope per invocation — DbContext is not thread-safe and concurrent
+        // hub calls (MaximumParallelInvocationsPerClient > 1) would share the connection scope.
+        var httpCtx = Context.GetHttpContext();
+        if (httpCtx == null)
+        {
+            await Clients.Caller.SendAsync("GameError", "No HTTP context available");
+            return null;
+        }
+        using var scope = httpCtx.RequestServices.CreateScope();
+        var dbContext = scope.ServiceProvider.GetRequiredService<AppDbContext>();
         var prompt = await dbContext.AgentPrompts
             .FirstOrDefaultAsync(p => p.Role == "Expert" && p.Personality == personality && p.IsActive);
 
@@ -66,23 +74,30 @@ public class GameHub : Hub
         var output = await RunClaudePrompt(connectionId, filledPrompt, effectiveModel);
         if (output == null) return null;
 
-        // Parse JSON array from output
-        try
+        // Scan all [...] substrings and return the first that deserializes as int[]
+        var searchFrom = 0;
+        while (searchFrom < output.Length)
         {
-            // Find first JSON array in the output
-            var start = output.IndexOf('[');
-            var end = output.LastIndexOf(']');
-            if (start < 0 || end < 0) return null;
+            var start = output.IndexOf('[', searchFrom);
+            if (start < 0) break;
 
-            var jsonArray = output.Substring(start, end - start + 1);
-            var numbers = JsonSerializer.Deserialize<int[]>(jsonArray);
-            return numbers;
+            var end = output.IndexOf(']', start + 1);
+            if (end < 0) break;
+
+            try
+            {
+                var candidate = output.Substring(start, end - start + 1);
+                var numbers = JsonSerializer.Deserialize<int[]>(candidate);
+                if (numbers is { Length: > 0 })
+                    return numbers;
+            }
+            catch { }
+
+            searchFrom = start + 1;
         }
-        catch
-        {
-            await Clients.Caller.SendAsync("GameError", $"Failed to parse AI response: {output[..Math.Min(200, output.Length)]}");
-            return null;
-        }
+
+        await Clients.Caller.SendAsync("GameError", $"Failed to parse AI response: {output[..Math.Min(200, output.Length)]}");
+        return null;
     }
 
     /// <summary>
@@ -97,7 +112,14 @@ public class GameHub : Hub
     {
         var connectionId = Context.ConnectionId;
 
-        var dbContext = Context.GetHttpContext()!.RequestServices.GetRequiredService<AppDbContext>();
+        var httpCtxMgr = Context.GetHttpContext();
+        if (httpCtxMgr == null)
+        {
+            await Clients.Caller.SendAsync("GameError", "No HTTP context available");
+            return null;
+        }
+        using var scope = httpCtxMgr.RequestServices.CreateScope();
+        var dbContext = scope.ServiceProvider.GetRequiredService<AppDbContext>();
         var prompt = await dbContext.AgentPrompts
             .FirstOrDefaultAsync(p => p.Role == "Manager" && p.IsActive);
 
@@ -160,9 +182,13 @@ public class GameHub : Hub
         try
         {
             process.Start();
-            var output = await process.StandardOutput.ReadToEndAsync();
-            var error = await process.StandardError.ReadToEndAsync();
+            // Read stdout and stderr concurrently — sequential reading can deadlock
+            // if the process fills one buffer while we're blocked waiting on the other.
+            var outputTask = process.StandardOutput.ReadToEndAsync();
+            var errorTask = process.StandardError.ReadToEndAsync();
             await process.WaitForExitAsync(Context.ConnectionAborted);
+            var output = await outputTask;
+            var error = await errorTask;
 
             if (process.ExitCode != 0 && !string.IsNullOrWhiteSpace(error))
             {

@@ -5,12 +5,20 @@ import {
   Clock,
   Cpu,
   BrainCircuit,
-  Trash2,
   History,
+  ChevronLeft,
+  ChevronRight,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import {
   Table,
   TableBody,
@@ -25,8 +33,9 @@ import type { GameHistoryEntry } from "../../types/game";
 interface GameHistoryGridProps {
   history: GameHistoryEntry[];
   onDelete: (id: string) => void;
-  onClear: () => void;
 }
+
+const PAGE_SIZES = [100, 200, 500, 1000] as const;
 
 function formatDate(iso: string): string {
   return new Date(iso).toLocaleDateString("en-US", {
@@ -47,10 +56,18 @@ function formatDuration(seconds: number): string {
 export function GameHistoryGrid({
   history,
   onDelete,
-  onClear,
 }: GameHistoryGridProps) {
   const [selectedEntry, setSelectedEntry] = useState<GameHistoryEntry | null>(
     null
+  );
+  const [page, setPage] = useState(0);
+  const [pageSize, setPageSize] = useState<number>(100);
+
+  const totalPages = Math.max(1, Math.ceil(history.length / pageSize));
+  const safeePage = Math.min(page, totalPages - 1);
+  const paginatedHistory = history.slice(
+    safeePage * pageSize,
+    (safeePage + 1) * pageSize
   );
 
   if (history.length === 0) {
@@ -66,6 +83,11 @@ export function GameHistoryGrid({
     );
   }
 
+  const handleDelete = (id: string) => {
+    onDelete(id);
+    setSelectedEntry(null);
+  };
+
   return (
     <>
       <Card>
@@ -77,17 +99,8 @@ export function GameHistoryGrid({
               {history.length}
             </Badge>
           </CardTitle>
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={onClear}
-            className="text-xs text-muted-foreground hover:text-destructive gap-1 h-7"
-          >
-            <Trash2 className="h-3 w-3" />
-            Clear All
-          </Button>
         </CardHeader>
-        <CardContent>
+        <CardContent className="space-y-3">
           <div className="rounded-lg border overflow-hidden">
             <Table>
               <TableHeader>
@@ -99,18 +112,17 @@ export function GameHistoryGrid({
                   <TableHead>Winner</TableHead>
                   <TableHead>Rounds</TableHead>
                   <TableHead>Duration</TableHead>
-                  <TableHead className="w-10"></TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {history.map((entry, i) => (
+                {paginatedHistory.map((entry, i) => (
                   <TableRow
                     key={entry.id}
                     className="cursor-pointer hover:bg-muted/50"
                     onClick={() => setSelectedEntry(entry)}
                   >
                     <TableCell className="font-mono text-xs text-muted-foreground">
-                      {i + 1}
+                      {safeePage * pageSize + i + 1}
                     </TableCell>
                     <TableCell className="text-xs">
                       {formatDate(entry.playedAt)}
@@ -166,23 +178,59 @@ export function GameHistoryGrid({
                     <TableCell className="font-mono text-xs">
                       {formatDuration(entry.durationSeconds)}
                     </TableCell>
-                    <TableCell>
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        className="h-6 w-6 p-0 text-muted-foreground hover:text-destructive"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          onDelete(entry.id);
-                        }}
-                      >
-                        <Trash2 className="h-3 w-3" />
-                      </Button>
-                    </TableCell>
                   </TableRow>
                 ))}
               </TableBody>
             </Table>
+          </div>
+
+          {/* Pagination */}
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <span className="text-xs text-muted-foreground">Rows per page</span>
+              <Select
+                value={String(pageSize)}
+                onValueChange={(v) => {
+                  setPageSize(Number(v));
+                  setPage(0);
+                }}
+              >
+                <SelectTrigger className="h-7 w-20 text-xs">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {PAGE_SIZES.map((size) => (
+                    <SelectItem key={size} value={String(size)}>
+                      {size}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div className="flex items-center gap-2">
+              <span className="text-xs text-muted-foreground">
+                Page {safeePage + 1} of {totalPages}
+              </span>
+              <Button
+                variant="outline"
+                size="sm"
+                className="h-7 w-7 p-0"
+                disabled={safeePage === 0}
+                onClick={() => setPage((p) => Math.max(0, p - 1))}
+              >
+                <ChevronLeft className="h-3.5 w-3.5" />
+              </Button>
+              <Button
+                variant="outline"
+                size="sm"
+                className="h-7 w-7 p-0"
+                disabled={safeePage >= totalPages - 1}
+                onClick={() => setPage((p) => Math.min(totalPages - 1, p + 1))}
+              >
+                <ChevronRight className="h-3.5 w-3.5" />
+              </Button>
+            </div>
           </div>
         </CardContent>
       </Card>
@@ -193,6 +241,7 @@ export function GameHistoryGrid({
         onOpenChange={(open) => {
           if (!open) setSelectedEntry(null);
         }}
+        onDelete={handleDelete}
       />
     </>
   );

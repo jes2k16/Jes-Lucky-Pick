@@ -1,4 +1,4 @@
-import { Trophy, Skull, Clock, Cpu, BrainCircuit, Download } from "lucide-react";
+import { Trophy, Skull, Clock, Cpu, BrainCircuit, Download, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
@@ -26,6 +26,7 @@ interface GameHistoryDialogProps {
   entry: GameHistoryEntry | null;
   open: boolean;
   onOpenChange: (open: boolean) => void;
+  onDelete?: (id: string) => void;
 }
 
 function formatDuration(seconds: number): string {
@@ -45,6 +46,7 @@ export function GameHistoryDialog({
   entry,
   open,
   onOpenChange,
+  onDelete,
 }: GameHistoryDialogProps) {
   if (!entry) return null;
 
@@ -71,7 +73,7 @@ export function GameHistoryDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-2xl max-h-[85vh] overflow-y-auto">
+      <DialogContent className="w-[70vw] sm:max-w-none max-h-[85vh] overflow-y-auto overflow-x-hidden">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <ResultIcon className={`h-5 w-5 ${resultColor}`} />
@@ -156,7 +158,7 @@ export function GameHistoryDialog({
                   <p className="text-xs text-muted-foreground mb-1">
                     Secret Combination
                   </p>
-                  <div className="flex gap-1.5">
+                  <div className="flex gap-1.5 flex-wrap">
                     {entry.winner.managerSecretCombination.map((n) => (
                       <NumberBall key={n} number={n} size="sm" />
                     ))}
@@ -185,7 +187,7 @@ export function GameHistoryDialog({
                   <p className="text-xs text-muted-foreground mb-1">
                     Winning Guess
                   </p>
-                  <div className="flex gap-1.5">
+                  <div className="flex gap-1.5 flex-wrap">
                     {entry.winner.winningGuess.map((n, i) => (
                       <NumberBall key={i} number={n} size="sm" />
                     ))}
@@ -288,6 +290,20 @@ export function GameHistoryDialog({
             </div>
           </div>
 
+          {/* Delete button */}
+          {onDelete && (
+            <div className="flex justify-end pt-2">
+              <Button
+                variant="destructive"
+                size="sm"
+                className="gap-2"
+                onClick={() => onDelete(entry.id)}
+              >
+                <Trash2 className="h-4 w-4" />
+                Delete Record
+              </Button>
+            </div>
+          )}
         </div>
       </DialogContent>
     </Dialog>

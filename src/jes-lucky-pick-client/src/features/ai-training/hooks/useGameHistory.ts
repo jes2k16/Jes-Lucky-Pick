@@ -7,7 +7,7 @@ import type {
 } from "../types/game";
 
 const STORAGE_KEY = "jes-number-training-history";
-const MAX_ENTRIES = 50;
+const MAX_ENTRIES = 5000;
 
 function loadHistory(): GameHistoryEntry[] {
   try {

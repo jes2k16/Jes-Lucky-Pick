@@ -47,9 +47,10 @@ type FormValues = z.infer<typeof settingsSchema>;
 
 interface GameSetupScreenProps {
   onStart: (settings: GameSettings, profile?: WinnerProfile) => void;
+  disabled?: boolean;
 }
 
-export function GameSetupScreen({ onStart }: GameSetupScreenProps) {
+export function GameSetupScreen({ onStart, disabled }: GameSetupScreenProps) {
   const [gameMode, setGameMode] = useState<"simulation" | "ai-agent">("simulation");
   const [lottoGame, setLottoGame] = useState<LottoGameType>(DEFAULT_SETTINGS.lottoGame);
   const [concurrencyMode, setConcurrencyMode] = useState<string>("sequential");
@@ -72,6 +73,7 @@ export function GameSetupScreen({ onStart }: GameSetupScreenProps) {
   });
 
   const onSubmit = (data: FormValues) => {
+    if (disabled) return;
     const game = LOTTO_GAMES[lottoGame];
     const settings: GameSettings = {
       ...data,
@@ -99,57 +101,55 @@ export function GameSetupScreen({ onStart }: GameSetupScreenProps) {
   };
 
   return (
-    <form onSubmit={handleSubmit(onSubmit)} className="max-w-2xl mx-auto space-y-6">
+    <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
       {/* Mode toggle */}
-      <div className="flex items-center gap-2 rounded-lg bg-muted p-1 w-fit mx-auto">
+      <div className="flex items-center gap-1 rounded-lg bg-muted p-1">
         <Button
           type="button"
           variant={gameMode === "simulation" ? "default" : "ghost"}
           size="sm"
-          onClick={() => setGameMode("simulation")}
-          className="gap-2"
+          onClick={() => !disabled && setGameMode("simulation")}
+          className="gap-1.5 flex-1 text-xs"
+          disabled={disabled}
         >
-          <Cpu className="h-4 w-4" />
+          <Cpu className="h-3.5 w-3.5" />
           Simulation
         </Button>
         <Button
           type="button"
           variant={gameMode === "ai-agent" ? "default" : "ghost"}
           size="sm"
-          onClick={() => setGameMode("ai-agent")}
-          className="gap-2"
+          onClick={() => !disabled && setGameMode("ai-agent")}
+          className="gap-1.5 flex-1 text-xs"
+          disabled={disabled}
         >
-          <BrainCircuit className="h-4 w-4" />
+          <BrainCircuit className="h-3.5 w-3.5" />
           AI Agent
         </Button>
       </div>
 
       {/* Mode explanation */}
-      <div className="rounded-lg border bg-muted/30 p-4 text-sm space-y-2">
+      <div className="rounded-lg border bg-muted/30 p-3 text-xs space-y-1">
         {gameMode === "simulation" ? (
           <>
-            <p className="font-medium flex items-center gap-2">
-              <Cpu className="h-4 w-4 text-muted-foreground" />
+            <p className="font-medium flex items-center gap-1.5">
+              <Cpu className="h-3.5 w-3.5 text-muted-foreground" />
               Simulation Mode
             </p>
-            <p className="text-muted-foreground text-xs leading-relaxed">
-              Runs entirely in your browser — no API calls. Experts use built-in
-              algorithmic strategies (Scanner, Sticky, Gambler, Analyst) to guess
-              the secret combination. Fast and free, great for testing game
-              settings and understanding how each personality behaves.
+            <p className="text-muted-foreground leading-relaxed">
+              Runs in your browser — no API calls. Experts use built-in
+              strategies (Scanner, Sticky, Gambler, Analyst).
             </p>
           </>
         ) : (
           <>
-            <p className="font-medium flex items-center gap-2">
-              <BrainCircuit className="h-4 w-4 text-amber-500" />
+            <p className="font-medium flex items-center gap-1.5">
+              <BrainCircuit className="h-3.5 w-3.5 text-amber-500" />
               AI Agent Mode
             </p>
-            <p className="text-muted-foreground text-xs leading-relaxed">
-              Each expert turn calls Claude CLI via the backend — the AI reads
-              its personality prompt, past guesses, and confidence map, then
-              reasons about which numbers to pick. Slower and uses API credits,
-              but experts can discover patterns that fixed algorithms cannot.
+            <p className="text-muted-foreground leading-relaxed">
+              Each expert turn calls Claude CLI — the AI reasons about
+              which numbers to pick. Uses API credits.
             </p>
           </>
         )}
@@ -157,17 +157,17 @@ export function GameSetupScreen({ onStart }: GameSetupScreenProps) {
 
       {gameMode === "ai-agent" && (
         <Card className="border-amber-500/30 bg-amber-500/5">
-          <CardContent className="pt-4 space-y-3">
+          <CardContent className="pt-3 pb-3 space-y-2">
             <div className="flex items-center gap-2">
-              <Badge className="bg-amber-500 text-white text-xs">AI Mode</Badge>
+              <Badge className="bg-amber-500 text-white text-xs">AI</Badge>
               <span className="text-xs text-muted-foreground">
-                Uses Claude API credits — each expert turn calls Claude CLI
+                Uses Claude API credits
               </span>
             </div>
-            <div className="grid grid-cols-2 gap-4">
-              <div className="space-y-1.5">
+            <div className="space-y-2">
+              <div className="space-y-1">
                 <Label className="text-xs">Model</Label>
-                <Select value={model} onValueChange={setModel}>
+                <Select value={model} onValueChange={setModel} disabled={disabled}>
                   <SelectTrigger className="h-8 text-xs">
                     <SelectValue />
                   </SelectTrigger>
@@ -180,15 +180,15 @@ export function GameSetupScreen({ onStart }: GameSetupScreenProps) {
                   </SelectContent>
                 </Select>
               </div>
-              <div className="space-y-1.5">
+              <div className="space-y-1">
                 <Label className="text-xs">Concurrency</Label>
-                <Select value={concurrencyMode} onValueChange={setConcurrencyMode}>
+                <Select value={concurrencyMode} onValueChange={setConcurrencyMode} disabled={disabled}>
                   <SelectTrigger className="h-8 text-xs">
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
                     <SelectItem value="sequential">Sequential</SelectItem>
-                    <SelectItem value="parallel-per-manager">Parallel per Manager</SelectItem>
+                    <SelectItem value="parallel-per-manager">Parallel / Manager</SelectItem>
                     <SelectItem value="fully-parallel">Fully Parallel</SelectItem>
                   </SelectContent>
                 </Select>
@@ -200,14 +200,14 @@ export function GameSetupScreen({ onStart }: GameSetupScreenProps) {
 
       {/* Game parameters */}
       <Card>
-        <CardHeader className="pb-3">
-          <CardTitle className="text-sm">Game Parameters</CardTitle>
+        <CardHeader className="pb-2 pt-3 px-3">
+          <CardTitle className="text-xs">Game Parameters</CardTitle>
         </CardHeader>
-        <CardContent className="space-y-4">
-          <div className="space-y-1.5">
+        <CardContent className="space-y-3 px-3 pb-3">
+          <div className="space-y-1">
             <Label className="text-xs">Lotto Game</Label>
-            <Select value={lottoGame} onValueChange={(v) => setLottoGame(v as LottoGameType)}>
-              <SelectTrigger>
+            <Select value={lottoGame} onValueChange={(v) => setLottoGame(v as LottoGameType)} disabled={disabled}>
+              <SelectTrigger className="h-8 text-xs">
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
@@ -222,34 +222,34 @@ export function GameSetupScreen({ onStart }: GameSetupScreenProps) {
             </Select>
           </div>
 
-          <div className="grid grid-cols-2 gap-4">
-            <div className="space-y-1.5">
+          <div className="grid grid-cols-2 gap-2">
+            <div className="space-y-1">
               <Label htmlFor="managerCount" className="text-xs">Managers</Label>
-              <Input id="managerCount" type="number" {...register("managerCount", { valueAsNumber: true })} />
+              <Input id="managerCount" type="number" className="h-8 text-xs" disabled={disabled} {...register("managerCount", { valueAsNumber: true })} />
               {errors.managerCount && (
                 <p className="text-xs text-destructive">{errors.managerCount.message}</p>
               )}
             </div>
-            <div className="space-y-1.5">
-              <Label htmlFor="expertsPerManager" className="text-xs">Experts/Manager</Label>
-              <Input id="expertsPerManager" type="number" {...register("expertsPerManager", { valueAsNumber: true })} />
+            <div className="space-y-1">
+              <Label htmlFor="expertsPerManager" className="text-xs">Experts/Mgr</Label>
+              <Input id="expertsPerManager" type="number" className="h-8 text-xs" disabled={disabled} {...register("expertsPerManager", { valueAsNumber: true })} />
               {errors.expertsPerManager && (
                 <p className="text-xs text-destructive">{errors.expertsPerManager.message}</p>
               )}
             </div>
           </div>
 
-          <div className="grid grid-cols-2 gap-4">
-            <div className="space-y-1.5">
-              <Label htmlFor="timeLimitMinutes" className="text-xs">Time Limit (min)</Label>
-              <Input id="timeLimitMinutes" type="number" {...register("timeLimitMinutes", { valueAsNumber: true })} />
+          <div className="grid grid-cols-2 gap-2">
+            <div className="space-y-1">
+              <Label htmlFor="timeLimitMinutes" className="text-xs">Time (min)</Label>
+              <Input id="timeLimitMinutes" type="number" className="h-8 text-xs" disabled={disabled} {...register("timeLimitMinutes", { valueAsNumber: true })} />
               {errors.timeLimitMinutes && (
                 <p className="text-xs text-destructive">{errors.timeLimitMinutes.message}</p>
               )}
             </div>
-            <div className="space-y-1.5">
-              <Label htmlFor="simulationSpeedMs" className="text-xs">Speed (ms/tick)</Label>
-              <Input id="simulationSpeedMs" type="number" {...register("simulationSpeedMs", { valueAsNumber: true })} />
+            <div className="space-y-1">
+              <Label htmlFor="simulationSpeedMs" className="text-xs">Speed (ms)</Label>
+              <Input id="simulationSpeedMs" type="number" className="h-8 text-xs" disabled={disabled} {...register("simulationSpeedMs", { valueAsNumber: true })} />
               {errors.simulationSpeedMs && (
                 <p className="text-xs text-destructive">{errors.simulationSpeedMs.message}</p>
               )}
@@ -259,7 +259,7 @@ export function GameSetupScreen({ onStart }: GameSetupScreenProps) {
       </Card>
 
       {/* Import profile */}
-      <div className="flex items-center gap-3">
+      <div className="flex flex-col gap-2">
         <input
           ref={fileInputRef}
           type="file"
@@ -272,14 +272,15 @@ export function GameSetupScreen({ onStart }: GameSetupScreenProps) {
           variant="outline"
           size="sm"
           onClick={() => fileInputRef.current?.click()}
-          className="gap-2"
+          className="gap-2 text-xs w-full"
+          disabled={disabled}
         >
-          <Upload className="h-4 w-4" />
+          <Upload className="h-3.5 w-3.5" />
           Import Winner Profile
         </Button>
         {importedProfile && (
           <div className="flex items-center gap-2">
-            <Badge variant="outline" className="text-xs">
+            <Badge variant="outline" className="text-xs truncate">
               {importedProfile.winner.expertName} ({importedProfile.personality})
             </Badge>
             <Button
@@ -287,7 +288,8 @@ export function GameSetupScreen({ onStart }: GameSetupScreenProps) {
               variant="ghost"
               size="sm"
               onClick={() => setImportedProfile(null)}
-              className="text-xs h-6 px-2"
+              className="text-xs h-6 px-2 shrink-0"
+              disabled={disabled}
             >
               Remove
             </Button>
@@ -296,9 +298,9 @@ export function GameSetupScreen({ onStart }: GameSetupScreenProps) {
       </div>
 
       {/* Start button */}
-      <Button type="submit" size="lg" className="w-full gap-2">
-        <Play className="h-5 w-5" />
-        Start Training
+      <Button type="submit" size="sm" className="w-full gap-2" disabled={disabled}>
+        <Play className="h-4 w-4" />
+        {disabled ? "Game in Progress" : "Start Training"}
       </Button>
     </form>
   );
