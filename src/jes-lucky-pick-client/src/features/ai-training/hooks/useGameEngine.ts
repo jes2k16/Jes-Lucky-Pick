@@ -10,6 +10,8 @@ import type {
   ActivityLogEntry,
   TryResult,
 } from "../types/game";
+import type { ExpertRegistry } from "../types/expert-registry";
+import { buildSeededConfidenceMap } from "./useExpertRegistry";
 import {
   executeStrategy,
   scoreGuess,
@@ -56,7 +58,8 @@ function initializeConfidenceMap(settings: GameSettings): Record<number, number>
 
 function createManagers(
   settings: GameSettings,
-  importedProfile?: WinnerProfile
+  importedProfile?: WinnerProfile,
+  registry?: ExpertRegistry
 ): Manager[] {
   const managers: Manager[] = [];
   let nameIdx = 0;
@@ -74,15 +77,28 @@ function createManagers(
       const useProfile =
         importedProfile && m === 0 && e === 0 && personality === importedProfile.personality;
 
+      // Veteran seeding: look up career data if useVeterans is enabled
+      let confidenceMap: Record<number, number>;
+      if (useProfile) {
+        confidenceMap = { ...importedProfile.confidenceMap };
+      } else if (settings.useVeterans && registry) {
+        const career = registry.experts.find(
+          (c) => c.name === name && c.personality === personality
+        );
+        confidenceMap = career
+          ? buildSeededConfidenceMap(career, settings.lottoGame, settings)
+          : initializeConfidenceMap(settings);
+      } else {
+        confidenceMap = initializeConfidenceMap(settings);
+      }
+
       experts.push({
         id: expertId,
         name,
         managerId,
         personality: useProfile ? importedProfile.personality : personality,
         status: "active",
-        confidenceMap: useProfile
-          ? { ...importedProfile.confidenceMap }
-          : initializeConfidenceMap(settings),
+        confidenceMap,
         tryHistory: [],
         roundHistory: [],
         roundScores: [],
@@ -124,6 +140,7 @@ export function useGameEngine(): GameEngine {
       gameMode: "simulation",
       concurrencyMode: "sequential",
       model: "claude-haiku-4-5-20251001",
+      useVeterans: false,
     })
   );
 
@@ -285,10 +302,10 @@ export function useGameEngine(): GameEngine {
   }, []);
 
   const startGame = useCallback(
-    (settings: GameSettings, importedProfile?: WinnerProfile) => {
+    (settings: GameSettings, importedProfile?: WinnerProfile, registry?: ExpertRegistry) => {
       clearIntervals();
 
-      const managers = createManagers(settings, importedProfile);
+      const managers = createManagers(settings, importedProfile, registry);
       const initialLog = addLog([], "Game started!", "info");
       const log = addLog(
         initialLog,

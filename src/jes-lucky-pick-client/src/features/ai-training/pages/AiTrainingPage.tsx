@@ -1,21 +1,29 @@
 import { useState } from "react";
-import { BrainCircuit, Play } from "lucide-react";
+import { BrainCircuit, Play, Info } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useGameHistory } from "@/features/ai-training/hooks/useGameHistory";
+import { useExpertRegistry } from "@/features/ai-training/hooks/useExpertRegistry";
 import { GameHistoryGrid } from "@/features/ai-training/components/game/GameHistoryGrid";
 import { NumberTrainingGame } from "@/features/ai-training/components/game/NumberTrainingGame";
 import { GameSetupModal } from "@/features/ai-training/components/game/GameSetupModal";
+import { ModeComparisonModal } from "@/features/ai-training/components/game/ModeComparisonModal";
 import type { GameSettings, GameState, WinnerProfile } from "@/features/ai-training/types/game";
 
 export function AiTrainingPage() {
   const [showGame, setShowGame] = useState(false);
   const [showSetupModal, setShowSetupModal] = useState(false);
+  const [showModeComparison, setShowModeComparison] = useState(false);
   const [gameSettings, setGameSettings] = useState<GameSettings | null>(null);
   const [importedProfile, setImportedProfile] = useState<WinnerProfile | null>(null);
   const { history, addEntry, deleteEntry } = useGameHistory();
+  const { registry, getVeteranCount, updateAfterGame } = useExpertRegistry();
 
   const handleGameEnd = (gameState: GameState) => {
     addEntry(gameState);
+    // Update expert careers with game results
+    if (gameSettings) {
+      updateAfterGame(gameState, gameSettings.lottoGame);
+    }
   };
 
   const handleModalStart = (settings: GameSettings, profile?: WinnerProfile) => {
@@ -44,6 +52,7 @@ export function AiTrainingPage() {
         <NumberTrainingGame
           initialSettings={gameSettings}
           initialProfile={importedProfile ?? undefined}
+          registry={gameSettings.useVeterans ? registry : undefined}
           onBack={handleBack}
           onPlayAgain={handlePlayAgain}
           onGameEnd={handleGameEnd}
@@ -64,13 +73,24 @@ export function AiTrainingPage() {
             Number training game — experts compete to guess secret combinations
           </p>
         </div>
-        <Button
-          onClick={() => setShowSetupModal(true)}
-          className="gap-2"
-        >
-          <Play className="h-4 w-4" />
-          New Game
-        </Button>
+        <div className="flex items-center gap-2">
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => setShowModeComparison(true)}
+            className="gap-1.5"
+          >
+            <Info className="h-3.5 w-3.5" />
+            How Modes Work
+          </Button>
+          <Button
+            onClick={() => setShowSetupModal(true)}
+            className="gap-2"
+          >
+            <Play className="h-4 w-4" />
+            New Game
+          </Button>
+        </div>
       </div>
 
       <div className="flex-1 min-h-0 overflow-y-auto">
@@ -84,6 +104,12 @@ export function AiTrainingPage() {
         open={showSetupModal}
         onOpenChange={setShowSetupModal}
         onStart={handleModalStart}
+        veteranCount={getVeteranCount("6/42")}
+      />
+
+      <ModeComparisonModal
+        open={showModeComparison}
+        onOpenChange={setShowModeComparison}
       />
     </div>
   );

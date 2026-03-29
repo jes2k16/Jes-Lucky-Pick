@@ -5,6 +5,7 @@ import type {
   LeaderboardEntry,
   WinnerProfile,
 } from "../types/game";
+import { saveTrainingSession } from "../api/training-api";
 
 const STORAGE_KEY = "jes-number-training-history";
 const MAX_ENTRIES = 5000;
@@ -96,6 +97,24 @@ export function useGameHistory() {
       const updated = [entry, ...prev].slice(0, MAX_ENTRIES);
       saveHistory(updated);
       return updated;
+    });
+
+    // Fire-and-forget sync to database
+    saveTrainingSession({
+      id: entry.id,
+      gameMode: entry.gameMode,
+      lottoGameCode: entry.settings.lottoGame,
+      result: entry.result,
+      durationSeconds: entry.durationSeconds,
+      totalRounds: entry.totalRounds,
+      totalExperts: entry.totalExperts,
+      survivingExperts: entry.survivingExperts,
+      settingsJson: JSON.stringify(entry.settings),
+      winnerJson: entry.winner ? JSON.stringify(entry.winner) : null,
+      leaderboardJson: JSON.stringify(entry.leaderboard),
+      playedAt: entry.playedAt,
+    }).catch(() => {
+      // Will retry on next sync
     });
   }, []);
 

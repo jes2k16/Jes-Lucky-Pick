@@ -26,6 +26,8 @@ public static class DependencyInjection
         services.AddScoped<IPredictionRepository, PredictionRepository>();
         services.AddScoped<ILottoGameRepository, LottoGameRepository>();
         services.AddScoped<IAppSettingRepository, AppSettingRepository>();
+        services.AddScoped<ITrainingSessionRepository, TrainingSessionRepository>();
+        services.AddScoped<IExpertCareerRepository, ExpertCareerRepository>();
 
         services.AddSingleton<IPasswordHasher, Argon2PasswordHasher>();
         services.AddSingleton<ITokenService, JwtTokenService>();

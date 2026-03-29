@@ -18,9 +18,23 @@ public class GameHub : Hub
     {
         if (OperatingSystem.IsWindows())
         {
+            // npm global install (classic)
             var appData = Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData);
             var cmdPath = Path.Combine(appData, "npm", "claude.cmd");
             if (File.Exists(cmdPath)) return cmdPath;
+
+            // VSCode extension bundled binary (claude.exe inside the installed extension)
+            var userProfile = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
+            var extensionsDir = Path.Combine(userProfile, ".vscode", "extensions");
+            if (Directory.Exists(extensionsDir))
+            {
+                var extensionDirs = Directory.GetDirectories(extensionsDir, "anthropic.claude-code-*");
+                foreach (var dir in extensionDirs.OrderByDescending(d => d))
+                {
+                    var exePath = Path.Combine(dir, "resources", "native-binary", "claude.exe");
+                    if (File.Exists(exePath)) return exePath;
+                }
+            }
         }
         return "claude";
     }
@@ -36,7 +50,8 @@ public class GameHub : Hub
         int roundNumber,
         int tryNumber,
         string confidenceMapJson,
-        string tryHistoryJson)
+        string tryHistoryJson,
+        string careerContextJson = "")
     {
         var connectionId = Context.ConnectionId;
 
@@ -67,6 +82,12 @@ public class GameHub : Hub
             .Replace("{tryNumber}", tryNumber.ToString())
             .Replace("{confidenceMap}", confidenceMapJson)
             .Replace("{tryHistory}", tryHistoryJson);
+
+        // Prepend career context for veteran experts
+        if (!string.IsNullOrWhiteSpace(careerContextJson))
+        {
+            filledPrompt = careerContextJson + "\n\n" + filledPrompt;
+        }
 
         var effectiveModel = string.IsNullOrEmpty(model) ? prompt.Model : model;
 
@@ -138,6 +159,39 @@ public class GameHub : Hub
         var effectiveModel = string.IsNullOrEmpty(model) ? prompt.Model : model;
 
         return await RunClaudePrompt(connectionId, filledPrompt, effectiveModel);
+    }
+
+    /// <summary>
+    /// Generate a one-line post-game lesson for an AI expert.
+    /// Called after game ends to capture what the expert learned.
+    /// </summary>
+    public async Task<string?> GeneratePostGameLesson(
+        string expertName,
+        string personality,
+        string model,
+        int bestScore,
+        string bestGuessJson,
+        string secretComboJson,
+        string matchedNumbersJson,
+        string tryHistoryJson)
+    {
+        var connectionId = Context.ConnectionId;
+
+        var prompt = $"""
+            You just finished a lotto number guessing game as "{expertName}" (personality: {personality}).
+            Your best try scored {bestScore}★ with {bestGuessJson}.
+            The secret combination was {secretComboJson}. You matched: {matchedNumbersJson}.
+            Your full try history this game: {tryHistoryJson}
+
+            Write ONE sentence summarizing what you learned. Focus on which numbers
+            showed promise and which were dead ends. Be specific and actionable
+            for your future self. Output ONLY the lesson sentence, nothing else.
+            """;
+
+        var effectiveModel = string.IsNullOrEmpty(model) ? "claude-haiku-4-5-20251001" : model;
+        var output = await RunClaudePrompt(connectionId, prompt, effectiveModel);
+
+        return output?.Trim();
     }
 
     public Task CancelGame()

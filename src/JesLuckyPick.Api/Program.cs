@@ -79,5 +79,6 @@ app.MapSettingsEndpoints();
 app.MapHub<TerminalHub>("/hubs/terminal");
 app.MapHub<GameHub>("/hubs/game");
 app.MapAgentPromptEndpoints();
+app.MapTrainingEndpoints();
 
 app.Run();

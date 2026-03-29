@@ -7,10 +7,12 @@ import { GameParamsSummary } from "./GameParamsSummary";
 import { GameLiveScreen } from "./GameLiveScreen";
 import { GameResultsScreen } from "./GameResultsScreen";
 import type { GameMode, GameSettings, GameState, WinnerProfile } from "../../types/game";
+import type { ExpertRegistry } from "../../types/expert-registry";
 
 interface NumberTrainingGameProps {
   initialSettings: GameSettings;
   initialProfile?: WinnerProfile;
+  registry?: ExpertRegistry;
   onBack: () => void;
   onPlayAgain: () => void;
   onGameEnd: (gameState: GameState) => void;
@@ -19,6 +21,7 @@ interface NumberTrainingGameProps {
 export function NumberTrainingGame({
   initialSettings,
   initialProfile,
+  registry,
   onBack,
   onPlayAgain,
   onGameEnd,
@@ -42,7 +45,7 @@ export function NumberTrainingGame({
       savedRef.current = false;
       setActiveMode(initialSettings.gameMode);
       const target = initialSettings.gameMode === "simulation" ? simEngine : aiEngine;
-      target.startGame(initialSettings, initialProfile);
+      target.startGame(initialSettings, initialProfile, registry);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);

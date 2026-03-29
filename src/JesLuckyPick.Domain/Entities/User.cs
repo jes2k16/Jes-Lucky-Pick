@@ -23,4 +23,6 @@ public class User
     public ICollection<Prediction> Predictions { get; set; } = [];
     public ICollection<RefreshToken> RefreshTokens { get; set; } = [];
     public ICollection<AuditLog> AuditLogs { get; set; } = [];
+    public ICollection<TrainingSession> TrainingSessions { get; set; } = [];
+    public ICollection<ExpertCareer> ExpertCareers { get; set; } = [];
 }

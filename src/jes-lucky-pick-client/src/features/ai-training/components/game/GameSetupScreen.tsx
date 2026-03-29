@@ -84,6 +84,7 @@ export function GameSetupScreen({ onStart, disabled }: GameSetupScreenProps) {
       gameMode,
       concurrencyMode: concurrencyMode as GameSettings["concurrencyMode"],
       model,
+      useVeterans: false,
     };
     onStart(settings, importedProfile ?? undefined);
   };

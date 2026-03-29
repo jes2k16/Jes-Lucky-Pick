@@ -1,4 +1,4 @@
-import { BrainCircuit, Cpu } from "lucide-react";
+import { BrainCircuit, Cpu, Users } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { LOTTO_GAMES, type GameSettings } from "../../types/game";
@@ -45,6 +45,12 @@ export function GameParamsSummary({ settings, importedProfileName }: GameParamsS
         <Badge variant="outline" className="text-xs">
           {lottoGame.label}
         </Badge>
+        {settings.useVeterans && (
+          <Badge variant="secondary" className="gap-1 text-xs">
+            <Users className="h-3 w-3" />
+            Veterans
+          </Badge>
+        )}
       </div>
 
       {/* Stats grid */}

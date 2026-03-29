@@ -13,6 +13,9 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
     public DbSet<AuditLog> AuditLogs => Set<AuditLog>();
     public DbSet<AppSetting> AppSettings => Set<AppSetting>();
     public DbSet<AgentPrompt> AgentPrompts => Set<AgentPrompt>();
+    public DbSet<TrainingSession> TrainingSessions => Set<TrainingSession>();
+    public DbSet<ExpertCareer> ExpertCareers => Set<ExpertCareer>();
+    public DbSet<ExpertLottoStats> ExpertLottoStats => Set<ExpertLottoStats>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {

@@ -35,6 +35,7 @@ export interface GameSettings {
   gameMode: GameMode;
   concurrencyMode: ConcurrencyMode;
   model: string;
+  useVeterans: boolean;
 }
 
 export const DEFAULT_SETTINGS: GameSettings = {
@@ -49,6 +50,7 @@ export const DEFAULT_SETTINGS: GameSettings = {
   gameMode: "simulation",
   concurrencyMode: "fully-parallel",
   model: "claude-haiku-4-5-20251001",
+  useVeterans: false,
 };
 
 // ── Try & Round ──
@@ -166,7 +168,7 @@ export interface LeaderboardEntry {
 
 export interface GameEngine {
   gameState: GameState;
-  startGame: (settings: GameSettings, importedProfile?: WinnerProfile) => void;
+  startGame: (settings: GameSettings, importedProfile?: WinnerProfile, registry?: import("./expert-registry").ExpertRegistry) => void;
   pauseGame: () => void;
   resumeGame: () => void;
   resetGame: () => void;

@@ -11,7 +11,11 @@
       "Bash(where claude:*)",
       "Bash(npx tsc:*)",
       "Bash(npx vitest:*)",
-      "Bash(dotnet test:*)"
+      "Bash(dotnet test:*)",
+      "Bash(mkdir -p \"d:/CLAUDE/Jes-Lucky-Pick/plans\")",
+      "Bash(mv \"d:/CLAUDE/Jes-Lucky-Pick/expert-learning-plan.md\" \"d:/CLAUDE/Jes-Lucky-Pick/plans/\")",
+      "Bash(mv \"d:/CLAUDE/Jes-Lucky-Pick/number-training-game-plan.md\" \"d:/CLAUDE/Jes-Lucky-Pick/plans/\")",
+      "Bash(docker-compose up:*)"
     ]
   }
 }

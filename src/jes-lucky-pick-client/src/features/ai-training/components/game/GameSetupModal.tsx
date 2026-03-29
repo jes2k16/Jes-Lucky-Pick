@@ -2,11 +2,12 @@ import { useRef, useState } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
-import { Play, Upload, BrainCircuit, Cpu } from "lucide-react";
+import { Play, Upload, BrainCircuit, Cpu, Users } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
+import { Switch } from "@/components/ui/switch";
 import {
   Dialog,
   DialogContent,
@@ -65,13 +66,15 @@ interface GameSetupModalProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   onStart: (settings: GameSettings, profile?: WinnerProfile) => void;
+  veteranCount?: number;
 }
 
-export function GameSetupModal({ open, onOpenChange, onStart }: GameSetupModalProps) {
+export function GameSetupModal({ open, onOpenChange, onStart, veteranCount = 0 }: GameSetupModalProps) {
   const [gameMode, setGameMode] = useState<GameMode>("simulation");
   const [lottoGame, setLottoGame] = useState<LottoGameType>(DEFAULT_SETTINGS.lottoGame);
   const [concurrencyMode, setConcurrencyMode] = useState<string>("fully-parallel");
   const [model, setModel] = useState(DEFAULT_SETTINGS.model);
+  const [useVeterans, setUseVeterans] = useState(false);
   const [importedProfile, setImportedProfile] = useState<WinnerProfile | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -100,6 +103,7 @@ export function GameSetupModal({ open, onOpenChange, onStart }: GameSetupModalPr
       gameMode,
       concurrencyMode: concurrencyMode as GameSettings["concurrencyMode"],
       model,
+      useVeterans,
     };
     onStart(settings, importedProfile ?? undefined);
     onOpenChange(false);
@@ -297,6 +301,40 @@ export function GameSetupModal({ open, onOpenChange, onStart }: GameSetupModalPr
                   )}
                 </div>
               </div>
+            </CardContent>
+          </Card>
+
+          {/* Veteran experts toggle */}
+          <Card>
+            <CardContent className="pt-3 pb-3 px-3">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <Users className="h-4 w-4 text-muted-foreground" />
+                  <div>
+                    <Label className="text-xs font-medium">Use veteran experts</Label>
+                    <p className="text-xs text-muted-foreground">
+                      Seed experts with knowledge from past games
+                    </p>
+                  </div>
+                </div>
+                <div className="flex items-center gap-2">
+                  {useVeterans && veteranCount > 0 && (
+                    <Badge variant="secondary" className="text-[10px]">
+                      {veteranCount} available
+                    </Badge>
+                  )}
+                  <Switch
+                    checked={useVeterans}
+                    onCheckedChange={setUseVeterans}
+                    disabled={veteranCount === 0}
+                  />
+                </div>
+              </div>
+              {veteranCount === 0 && (
+                <p className="text-xs text-muted-foreground mt-1.5">
+                  No veterans yet — play some games first to build career data.
+                </p>
+              )}
             </CardContent>
           </Card>
 
