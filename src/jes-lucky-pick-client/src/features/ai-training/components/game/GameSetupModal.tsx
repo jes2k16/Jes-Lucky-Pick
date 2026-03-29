@@ -74,7 +74,7 @@ export function GameSetupModal({ open, onOpenChange, onStart, veteranCount = 0 }
   const [lottoGame, setLottoGame] = useState<LottoGameType>(DEFAULT_SETTINGS.lottoGame);
   const [concurrencyMode, setConcurrencyMode] = useState<string>("fully-parallel");
   const [model, setModel] = useState(DEFAULT_SETTINGS.model);
-  const [useVeterans, setUseVeterans] = useState(false);
+  const [useVeterans, setUseVeterans] = useState(true);
   const [importedProfile, setImportedProfile] = useState<WinnerProfile | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 

@@ -14,6 +14,7 @@ import {
   Settings,
   BrainCircuit,
   MessageSquare,
+  Trophy,
 } from "lucide-react";
 import { useAuthStore } from "@/stores/authStore";
 import { useUiStore } from "@/stores/uiStore";
@@ -165,6 +166,18 @@ export function AppLayout() {
                         <NavLink to="/model-training">
                           <BrainCircuit />
                           <span>Model Training</span>
+                        </NavLink>
+                      </SidebarMenuButton>
+                    </SidebarMenuItem>
+                    <SidebarMenuItem>
+                      <SidebarMenuButton
+                        asChild
+                        isActive={location.pathname === "/veteran-data"}
+                        tooltip="Veteran Data"
+                      >
+                        <NavLink to="/veteran-data">
+                          <Trophy />
+                          <span>Veteran Data</span>
                         </NavLink>
                       </SidebarMenuButton>
                     </SidebarMenuItem>

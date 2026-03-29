@@ -25,4 +25,13 @@ public class TrainingSessionRepository(AppDbContext context) : ITrainingSessionR
         await context.TrainingSessions.AddAsync(session, ct);
         await context.SaveChangesAsync(ct);
     }
+
+    public async Task DeleteAsync(Guid userId, Guid id, CancellationToken ct = default)
+    {
+        var session = await context.TrainingSessions
+            .FirstOrDefaultAsync(s => s.Id == id && s.UserId == userId, ct);
+        if (session is null) return;
+        context.TrainingSessions.Remove(session);
+        await context.SaveChangesAsync(ct);
+    }
 }

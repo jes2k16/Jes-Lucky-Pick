@@ -32,3 +32,32 @@ export async function fetchPredictionHistory(params: {
   >("/predictions", { params });
   return data;
 }
+
+export async function savePrediction(params: {
+  gameCode: string;
+  numbers: number[];
+  strategy: string;
+  confidenceScore: number;
+  reasoning: string;
+}): Promise<PredictionResponse[]> {
+  const { data } = await apiClient.post<PredictionResponse[]>(
+    "/predictions/save",
+    params
+  );
+  return data;
+}
+
+export async function generateAgentPrediction(params: {
+  gameCode: string;
+  personality: string;
+  model: string;
+  count?: number;
+  confidenceMapJson?: string;
+  careerContextJson?: string;
+}): Promise<PredictionResponse[]> {
+  const { data } = await apiClient.post<PredictionResponse[]>(
+    "/predictions/agent",
+    params
+  );
+  return data;
+}

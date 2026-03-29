@@ -14,6 +14,7 @@ public class ExpertCareerConfiguration : IEntityTypeConfiguration<ExpertCareer>
         builder.Property(x => x.Name).HasMaxLength(50);
         builder.Property(x => x.Personality).HasMaxLength(20);
         builder.Property(x => x.AvgRoundScore).HasPrecision(8, 4);
+        builder.Property(x => x.IsFavorite).HasDefaultValue(false);
         builder.Property(x => x.CreatedAt).HasDefaultValueSql("now()");
         builder.Property(x => x.UpdatedAt).HasDefaultValueSql("now()");
 

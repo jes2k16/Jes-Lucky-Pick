@@ -14,6 +14,7 @@ export interface GameMemory {
   topConfidence: number[];
   bottomConfidence: number[];
   lesson: string;
+  mode?: "simulation" | "ai-agent";
 }
 
 // ── Career Summary (for games older than stored memories) ──
@@ -52,6 +53,7 @@ export interface ExpertCareer {
   bestEverScore: number;
   avgRoundScore: number;
   lastPlayedAt: string | null;
+  isFavorite?: boolean;
   byLottoGame: Record<string, ExpertLottoStats>;
 }
 

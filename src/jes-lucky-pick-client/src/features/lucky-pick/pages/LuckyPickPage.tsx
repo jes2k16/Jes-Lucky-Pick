@@ -2,6 +2,8 @@ import { useState, useEffect } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   generatePrediction,
+  savePrediction,
+  generateAgentPrediction,
   fetchPredictionHistory,
   fetchDrawContext,
 } from "@/features/lucky-pick/api/predictionApi";
@@ -19,7 +21,22 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover";
+import {
+  Command,
+  CommandEmpty,
+  CommandGroup,
+  CommandInput,
+  CommandItem,
+  CommandList,
+  CommandSeparator,
+} from "@/components/ui/command";
 import { Label } from "@/components/ui/label";
+import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { NumberBall } from "@/components/shared/NumberBall";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -31,19 +48,58 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { Sparkles, History, Trophy, Clock } from "lucide-react";
+import { Sparkles, History, Trophy, Clock, ChevronsUpDown, Check } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { formatDate, formatDateTime } from "@/lib/format-date";
+import { useExpertRegistry } from "@/features/ai-training/hooks/useExpertRegistry";
+import {
+  buildSeededConfidenceMap,
+  buildCareerContext,
+} from "@/features/ai-training/hooks/useExpertRegistry";
+import { executeStrategy } from "@/features/ai-training/utils/strategies";
 import type { GameScheduleDto, PredictionResponse } from "@/types/api";
+import type {
+  ExpertPersonality,
+  GameSettings,
+  Expert,
+} from "@/features/ai-training/types/game";
+import type { ExpertCareer, ExpertRegistry } from "@/features/ai-training/types/expert-registry";
+
+// ── Types ──
+
+type PickMethod = "standard" | "simulation" | "agent";
+
+// ── Constants ──
 
 const strategies = [
   { value: "combined", label: "Combined (All Strategies)" },
   { value: "frequency", label: "Frequency Analysis" },
   { value: "hotcold", label: "Hot & Cold Numbers" },
   { value: "gap", label: "Gap Analysis (Due Numbers)" },
-  { value: "aiweighted", label: "AI Weighted" },
-  { value: "claudeai", label: "Claude AI" },
 ];
+
+const AI_MODELS = [
+  { value: "claude-haiku-4-5-20251001", label: "Haiku 4.5" },
+  { value: "claude-sonnet-4-6", label: "Sonnet 4.6" },
+  { value: "claude-opus-4-6", label: "Opus 4.6" },
+];
+
+const MINIMAL_SETTINGS: GameSettings = {
+  lottoGame: "6/42",
+  numberRangeMin: 1,
+  numberRangeMax: 42,
+  combinationSize: 6,
+  managerCount: 1,
+  expertsPerManager: 1,
+  timeLimitMinutes: 5,
+  simulationSpeedMs: 500,
+  gameMode: "simulation",
+  concurrencyMode: "fully-parallel",
+  model: "claude-haiku-4-5-20251001",
+  useVeterans: false,
+};
+
+// ── Helpers ──
 
 function extractModelName(reasoning: string): string | null {
   const match = reasoning.match(/^\[Model: (.+?)\]\s*/);
@@ -54,11 +110,49 @@ function stripModelPrefix(reasoning: string): string {
   return reasoning.replace(/^\[Model: .+?\]\s*/, "");
 }
 
+function extractPersonality(reasoning: string): string | null {
+  return reasoning.match(/\[Personality: (.+?)\]/)?.[1] ?? null;
+}
+
+function getWinRatePct(career: ExpertCareer): number {
+  const stats = career.byLottoGame["6/42"];
+  if (!stats || stats.gamesPlayed === 0) return 0;
+  return Math.round((stats.wins / stats.gamesPlayed) * 100);
+}
+
+function resolveVeteranCareer(
+  registry: ExpertRegistry,
+  selectedVeteranId: string | "none" | "auto"
+): ExpertCareer | null {
+  if (selectedVeteranId === "none") return null;
+  const candidates = registry.experts.filter(
+    (e) => (e.byLottoGame["6/42"]?.gamesPlayed ?? 0) > 0
+  );
+  if (!candidates.length) return null;
+  if (selectedVeteranId === "auto") {
+    return candidates.sort(
+      (a, b) =>
+        (b.byLottoGame["6/42"]?.gamesPlayed ?? 0) -
+        (a.byLottoGame["6/42"]?.gamesPlayed ?? 0)
+    )[0];
+  }
+  return candidates.find((e) => e.id === selectedVeteranId) ?? null;
+}
+
 const dayMap: Record<string, number> = {
-  Sun: 0, Mon: 1, Tue: 2, Wed: 3, Thu: 4, Fri: 5, Sat: 6,
+  Sun: 0,
+  Mon: 1,
+  Tue: 2,
+  Wed: 3,
+  Thu: 4,
+  Fri: 5,
+  Sat: 6,
 };
 
-function useCountdown(schedule: GameScheduleDto | undefined, drawTimeIso: string | undefined) {
+function useCountdown(
+  schedule: GameScheduleDto | undefined,
+  drawTimeIso: string | undefined
+) {
   const [timeLeft, setTimeLeft] = useState("");
   const [nextDrawDate, setNextDrawDate] = useState<Date | null>(null);
 
@@ -106,13 +200,44 @@ function useCountdown(schedule: GameScheduleDto | undefined, drawTimeIso: string
   return { timeLeft, nextDrawDate };
 }
 
+// ── Component ──
+
 export function LuckyPickPage() {
+  const [method, setMethod] = useState<PickMethod>("standard");
   const [strategy, setStrategy] = useState("combined");
   const [count, setCount] = useState(1);
+  const [aiModel, setAiModel] = useState("claude-haiku-4-5-20251001");
+  const [selectedVeteranId, setSelectedVeteranId] = useState<
+    string | "none" | "auto"
+  >("auto");
+  const [veteranPopoverOpen, setVeteranPopoverOpen] = useState(false);
   const [results, setResults] = useState<PredictionResponse[]>([]);
   const [historyPage, setHistoryPage] = useState(1);
   const historyPageSize = 10;
   const queryClient = useQueryClient();
+
+  const { registry } = useExpertRegistry();
+
+  // Veteran dropdown data — all personalities
+  const allVets = registry.experts.filter(
+    (e) => (e.byLottoGame["6/42"]?.gamesPlayed ?? 0) > 0
+  );
+  const favVets = allVets
+    .filter((e) => e.isFavorite)
+    .sort((a, b) => getWinRatePct(b) - getWinRatePct(a));
+  const otherVets = allVets
+    .filter((e) => !e.isFavorite)
+    .sort(
+      (a, b) =>
+        (b.byLottoGame["6/42"]?.gamesPlayed ?? 0) -
+        (a.byLottoGame["6/42"]?.gamesPlayed ?? 0)
+    );
+
+  const resolvedVeteran = resolveVeteranCareer(registry, selectedVeteranId);
+
+  // Personality is derived from the selected veteran (fallback: Scanner)
+  const effectivePersonality: ExpertPersonality =
+    resolvedVeteran?.personality ?? "Scanner";
 
   const { data: context, isLoading: contextLoading } = useQuery({
     queryKey: ["draws", "context"],
@@ -124,7 +249,8 @@ export function LuckyPickPage() {
     context?.lastDraw?.drawDate
   );
 
-  const mutation = useMutation({
+  // Standard mutation
+  const strategyMutation = useMutation({
     mutationFn: () =>
       generatePrediction({ gameCode: "6_42", strategy, count }),
     onSuccess: (data) => {
@@ -132,6 +258,106 @@ export function LuckyPickPage() {
       queryClient.invalidateQueries({ queryKey: ["predictions"] });
     },
   });
+
+  // Simulation mutation (client-side generation, then save)
+  const simulationMutation = useMutation({
+    mutationFn: async () => {
+      const veteran = resolveVeteranCareer(registry, selectedVeteranId);
+      const personality = veteran?.personality ?? "Scanner";
+      const confidenceMap = veteran
+        ? buildSeededConfidenceMap(veteran, "6/42", MINIMAL_SETTINGS)
+        : Object.fromEntries(
+            Array.from({ length: 42 }, (_, i) => [i + 1, 0.5])
+          );
+
+      const expert: Expert = {
+        id: "lp",
+        name: "LuckyPick",
+        managerId: "",
+        personality,
+        status: "active",
+        confidenceMap,
+        tryHistory: [],
+        roundHistory: [],
+        roundScores: [],
+        eliminatedAtRound: null,
+        currentRoundScore: 0,
+      };
+
+      const sets = Array.from({ length: count }, () =>
+        executeStrategy(expert, MINIMAL_SETTINGS, 1)
+      );
+
+      const avgConfidence =
+        sets[0]
+          .map((n) => confidenceMap[n] ?? 0.5)
+          .reduce((s, v) => s + v, 0) /
+        sets[0].length;
+      const confidenceScore = Math.round(
+        Math.min(100, Math.max(0, avgConfidence * 100))
+      );
+
+      const veteranNote =
+        veteran
+          ? `[Veteran: ${veteran.byLottoGame["6/42"]?.gamesPlayed ?? 0} games, ${getWinRatePct(veteran)}% WR]`
+          : "";
+      const reasoning = `[Personality: ${personality}]${veteranNote ? " " + veteranNote : ""} Simulation-generated pick using ${personality} strategy.`;
+
+      const savedSets = await Promise.all(
+        sets.map((numbers) =>
+          savePrediction({
+            gameCode: "6_42",
+            numbers,
+            strategy: "SimulationExpert",
+            confidenceScore,
+            reasoning,
+          })
+        )
+      );
+
+      return savedSets.flat();
+    },
+    onSuccess: (data) => {
+      setResults(data);
+      queryClient.invalidateQueries({ queryKey: ["predictions"] });
+    },
+  });
+
+  // AI Agent mutation
+  const agentMutation = useMutation({
+    mutationFn: async () => {
+      const veteran = resolveVeteranCareer(registry, selectedVeteranId);
+      const personality = veteran?.personality ?? "Scanner";
+      const confidenceMap = veteran
+        ? buildSeededConfidenceMap(veteran, "6/42", MINIMAL_SETTINGS)
+        : Object.fromEntries(
+            Array.from({ length: 42 }, (_, i) => [i + 1, 0.5])
+          );
+      const careerContext = veteran
+        ? buildCareerContext(veteran, "6/42") ?? ""
+        : "";
+
+      return generateAgentPrediction({
+        gameCode: "6_42",
+        personality,
+        model: aiModel,
+        count,
+        confidenceMapJson: JSON.stringify(confidenceMap),
+        careerContextJson: careerContext,
+      });
+    },
+    onSuccess: (data) => {
+      setResults(data);
+      queryClient.invalidateQueries({ queryKey: ["predictions"] });
+    },
+  });
+
+  const activeMutation =
+    method === "standard"
+      ? strategyMutation
+      : method === "simulation"
+        ? simulationMutation
+        : agentMutation;
 
   const { data: history, isLoading: historyLoading } = useQuery({
     queryKey: ["predictions", historyPage],
@@ -142,6 +368,159 @@ export function LuckyPickPage() {
   const totalHistoryPages = history
     ? Math.ceil(history.totalCount / historyPageSize)
     : 0;
+
+  function handleGenerate() {
+    activeMutation.mutate();
+  }
+
+  // ── Veteran Combobox ──
+
+  function veteranCombobox() {
+    const displayLabel =
+      selectedVeteranId === "auto"
+        ? "Auto (Best veteran)"
+        : selectedVeteranId === "none"
+          ? "None (Fresh map)"
+          : resolvedVeteran
+            ? `${resolvedVeteran.isFavorite ? "⭐ " : ""}${resolvedVeteran.name} (${resolvedVeteran.personality})`
+            : "Select veteran...";
+
+    return (
+      <div className="space-y-1.5">
+        <Label className="text-xs text-muted-foreground">Veteran Expert</Label>
+        <Popover open={veteranPopoverOpen} onOpenChange={setVeteranPopoverOpen}>
+          <PopoverTrigger asChild>
+            <Button
+              variant="outline"
+              role="combobox"
+              aria-expanded={veteranPopoverOpen}
+              className="w-72 justify-between font-normal"
+            >
+              <span className="truncate">{displayLabel}</span>
+              <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+            </Button>
+          </PopoverTrigger>
+          <PopoverContent className="w-72 p-0">
+            <Command>
+              <CommandInput placeholder="Search veteran..." />
+              <CommandList>
+                <CommandEmpty>No veteran found.</CommandEmpty>
+                <CommandGroup>
+                  <CommandItem
+                    value="auto"
+                    onSelect={() => {
+                      setSelectedVeteranId("auto");
+                      setVeteranPopoverOpen(false);
+                    }}
+                  >
+                    <Check
+                      className={cn(
+                        "mr-2 h-4 w-4",
+                        selectedVeteranId === "auto" ? "opacity-100" : "opacity-0"
+                      )}
+                    />
+                    Auto (Best veteran)
+                  </CommandItem>
+                </CommandGroup>
+
+                {favVets.length > 0 && (
+                  <>
+                    <CommandSeparator />
+                    <CommandGroup heading="Favorites">
+                      {favVets.map((c) => (
+                        <CommandItem
+                          key={c.id}
+                          value={`${c.name} ${c.personality} favorite`}
+                          onSelect={() => {
+                            setSelectedVeteranId(c.id);
+                            setVeteranPopoverOpen(false);
+                          }}
+                        >
+                          <Check
+                            className={cn(
+                              "mr-2 h-4 w-4",
+                              selectedVeteranId === c.id ? "opacity-100" : "opacity-0"
+                            )}
+                          />
+                          ⭐ {c.name} ({c.personality}) —{" "}
+                          {c.byLottoGame["6/42"]?.gamesPlayed ?? 0} games,{" "}
+                          {getWinRatePct(c)}% WR
+                        </CommandItem>
+                      ))}
+                    </CommandGroup>
+                  </>
+                )}
+
+                {otherVets.length > 0 && (
+                  <>
+                    <CommandSeparator />
+                    <CommandGroup heading="All Veterans">
+                      {otherVets.map((c) => (
+                        <CommandItem
+                          key={c.id}
+                          value={`${c.name} ${c.personality}`}
+                          onSelect={() => {
+                            setSelectedVeteranId(c.id);
+                            setVeteranPopoverOpen(false);
+                          }}
+                        >
+                          <Check
+                            className={cn(
+                              "mr-2 h-4 w-4",
+                              selectedVeteranId === c.id ? "opacity-100" : "opacity-0"
+                            )}
+                          />
+                          {c.name} ({c.personality}) —{" "}
+                          {c.byLottoGame["6/42"]?.gamesPlayed ?? 0} games,{" "}
+                          {getWinRatePct(c)}% WR
+                        </CommandItem>
+                      ))}
+                    </CommandGroup>
+                  </>
+                )}
+
+                <CommandSeparator />
+                <CommandGroup>
+                  <CommandItem
+                    value="none"
+                    onSelect={() => {
+                      setSelectedVeteranId("none");
+                      setVeteranPopoverOpen(false);
+                    }}
+                  >
+                    <Check
+                      className={cn(
+                        "mr-2 h-4 w-4",
+                        selectedVeteranId === "none" ? "opacity-100" : "opacity-0"
+                      )}
+                    />
+                    None (Fresh map)
+                  </CommandItem>
+                </CommandGroup>
+              </CommandList>
+            </Command>
+          </PopoverContent>
+        </Popover>
+
+        {allVets.length === 0 && (
+          <p className="text-xs text-muted-foreground">
+            No veteran data for {effectivePersonality} — using fresh confidence map.
+          </p>
+        )}
+
+        {selectedVeteranId !== "auto" &&
+          selectedVeteranId !== "none" &&
+          resolvedVeteran && (
+            <p className="text-xs text-muted-foreground">
+              {resolvedVeteran.name}:{" "}
+              {resolvedVeteran.byLottoGame["6/42"]?.gamesPlayed ?? 0} games,{" "}
+              {getWinRatePct(resolvedVeteran)}% WR, best{" "}
+              {resolvedVeteran.bestEverScore}★
+            </p>
+          )}
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6">
@@ -183,7 +562,8 @@ export function LuckyPickPage() {
                 <div className="flex items-center gap-4 text-sm">
                   {context.lastDraw.jackpotAmount != null && (
                     <span className="font-medium text-green-600">
-                      Jackpot: ₱{context.lastDraw.jackpotAmount.toLocaleString()}
+                      Jackpot: ₱
+                      {context.lastDraw.jackpotAmount.toLocaleString()}
                     </span>
                   )}
                   {context.lastDraw.winnersCount != null && (
@@ -194,7 +574,9 @@ export function LuckyPickPage() {
                 </div>
               </div>
             ) : (
-              <p className="text-sm text-muted-foreground">No draw data available</p>
+              <p className="text-sm text-muted-foreground">
+                No draw data available
+              </p>
             )}
           </CardContent>
         </Card>
@@ -232,12 +614,15 @@ export function LuckyPickPage() {
                 </p>
               </div>
             ) : (
-              <p className="text-sm text-muted-foreground">Schedule unavailable</p>
+              <p className="text-sm text-muted-foreground">
+                Schedule unavailable
+              </p>
             )}
           </CardContent>
         </Card>
       </div>
 
+      {/* Strategy / Mode Card */}
       <Card>
         <CardHeader>
           <CardTitle className="flex items-center gap-2 text-sm font-medium">
@@ -245,25 +630,74 @@ export function LuckyPickPage() {
             Pick Your Strategy
           </CardTitle>
         </CardHeader>
-        <CardContent className="space-y-4">
-          <div className="flex flex-wrap gap-4">
-            <div className="w-64 space-y-1">
-              <Label className="text-xs text-muted-foreground">Strategy</Label>
-              <Select value={strategy} onValueChange={setStrategy}>
-                <SelectTrigger>
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  {strategies.map((s) => (
-                    <SelectItem key={s.value} value={s.value}>
-                      {s.label}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
+        <CardContent className="space-y-5">
+          {/* Mode Tabs */}
+          <Tabs
+            value={method}
+            onValueChange={(v) => setMethod(v as PickMethod)}
+          >
+            <TabsList>
+              <TabsTrigger value="standard">Standard</TabsTrigger>
+              <TabsTrigger value="simulation">Simulation</TabsTrigger>
+              <TabsTrigger value="agent">AI Agent</TabsTrigger>
+            </TabsList>
+          </Tabs>
 
-            <div className="w-32 space-y-1">
+          <div className="flex flex-wrap gap-4">
+            {/* Standard tab controls */}
+            {method === "standard" && (
+              <div className="w-64 space-y-1.5">
+                <Label className="text-xs text-muted-foreground">
+                  Strategy
+                </Label>
+                <Select value={strategy} onValueChange={setStrategy}>
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {strategies.map((s) => (
+                      <SelectItem key={s.value} value={s.value}>
+                        {s.label}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            )}
+
+            {/* Simulation tab controls */}
+            {method === "simulation" && (
+              <>
+                {veteranCombobox()}
+              </>
+            )}
+
+            {/* AI Agent tab controls */}
+            {method === "agent" && (
+              <>
+                <div className="w-44 space-y-1.5">
+                  <Label className="text-xs text-muted-foreground">
+                    Model
+                  </Label>
+                  <Select value={aiModel} onValueChange={setAiModel}>
+                    <SelectTrigger>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {AI_MODELS.map((m) => (
+                        <SelectItem key={m.value} value={m.value}>
+                          {m.label}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+                {veteranCombobox()}
+              </>
+            )}
+
+            {/* Sets selector — all modes */}
+            <div className="w-32 space-y-1.5">
               <Label className="text-xs text-muted-foreground">Sets</Label>
               <Select
                 value={String(count)}
@@ -283,10 +717,10 @@ export function LuckyPickPage() {
 
           <Button
             size="lg"
-            onClick={() => mutation.mutate()}
-            disabled={mutation.isPending}
+            onClick={handleGenerate}
+            disabled={activeMutation.isPending}
           >
-            {mutation.isPending ? "Generating..." : "Generate Lucky Numbers"}
+            {activeMutation.isPending ? "Generating..." : "Generate Lucky Numbers"}
           </Button>
         </CardContent>
       </Card>
@@ -294,40 +728,48 @@ export function LuckyPickPage() {
       {/* Results */}
       {results.length > 0 && (
         <div className="space-y-4">
-          {results.map((result, idx) => (
-            <Card key={idx}>
-              <CardContent className="p-5">
-                <div className="flex flex-wrap items-center gap-4">
-                  <div className="flex gap-3">
-                    {result.numbers.map((num, i) => (
-                      <NumberBall key={i} number={num} size="lg" />
-                    ))}
-                  </div>
-                  <div className="flex-1">
-                    <div className="mb-2 flex items-center gap-2">
-                      <Badge variant="outline">{result.strategy}</Badge>
-                      {result.strategy === "ClaudeAi" &&
-                        extractModelName(result.reasoning) && (
+          {results.map((result, idx) => {
+            const personality = extractPersonality(result.reasoning);
+            return (
+              <Card key={idx}>
+                <CardContent className="p-5">
+                  <div className="flex flex-wrap items-center gap-4">
+                    <div className="flex gap-3">
+                      {result.numbers.map((num, i) => (
+                        <NumberBall key={i} number={num} size="lg" />
+                      ))}
+                    </div>
+                    <div className="flex-1">
+                      <div className="mb-2 flex flex-wrap items-center gap-2">
+                        <Badge variant="outline">{result.strategy}</Badge>
+                        {personality && (
                           <Badge variant="secondary" className="text-xs">
-                            {extractModelName(result.reasoning)}
+                            {personality}
                           </Badge>
                         )}
-                      <span className="text-xs text-muted-foreground">
-                        Confidence: {result.confidenceScore}%
-                      </span>
+                        {result.strategy === "ClaudeAi" &&
+                          extractModelName(result.reasoning) && (
+                            <Badge variant="secondary" className="text-xs">
+                              {extractModelName(result.reasoning)}
+                            </Badge>
+                          )}
+                        <span className="text-xs text-muted-foreground">
+                          Confidence: {result.confidenceScore}%
+                        </span>
+                      </div>
+                      <p className="text-sm text-muted-foreground">
+                        {stripModelPrefix(result.reasoning)}
+                      </p>
                     </div>
-                    <p className="text-sm text-muted-foreground">
-                      {stripModelPrefix(result.reasoning)}
-                    </p>
                   </div>
-                </div>
-              </CardContent>
-            </Card>
-          ))}
+                </CardContent>
+              </Card>
+            );
+          })}
         </div>
       )}
 
-      {mutation.isError && (
+      {activeMutation.isError && (
         <div className="rounded-lg border border-destructive/20 bg-destructive/10 p-4 text-sm text-destructive">
           Failed to generate prediction. Please try again.
         </div>
@@ -367,73 +809,84 @@ export function LuckyPickPage() {
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {history.items.map((item) => (
-                    <TableRow key={item.id}>
-                      <TableCell className="text-sm text-muted-foreground whitespace-nowrap">
-                        {formatDateTime(item.createdAt)}
-                      </TableCell>
-                      <TableCell>
-                        <div className="flex gap-1">
-                          {item.numbers.map((num, i) => (
-                            <NumberBall key={i} number={num} size="sm" />
-                          ))}
-                        </div>
-                      </TableCell>
-                      <TableCell>
-                        <div className="flex flex-col gap-1">
-                          <Badge variant="outline" className="text-xs">
-                            {item.strategy}
-                          </Badge>
-                          {item.strategy === "ClaudeAi" &&
-                            extractModelName(item.reasoning) && (
+                  {history.items.map((item) => {
+                    const personality = extractPersonality(item.reasoning);
+                    return (
+                      <TableRow key={item.id}>
+                        <TableCell className="text-sm text-muted-foreground whitespace-nowrap">
+                          {formatDateTime(item.createdAt)}
+                        </TableCell>
+                        <TableCell>
+                          <div className="flex gap-1">
+                            {item.numbers.map((num, i) => (
+                              <NumberBall key={i} number={num} size="sm" />
+                            ))}
+                          </div>
+                        </TableCell>
+                        <TableCell>
+                          <div className="flex flex-col gap-1">
+                            <Badge variant="outline" className="text-xs">
+                              {item.strategy}
+                            </Badge>
+                            {personality && (
                               <Badge
                                 variant="secondary"
                                 className="text-xs w-fit"
                               >
-                                {extractModelName(item.reasoning)}
+                                {personality}
                               </Badge>
                             )}
-                        </div>
-                      </TableCell>
-                      <TableCell className="text-sm text-muted-foreground">
-                        {item.confidenceScore}%
-                      </TableCell>
-                      <TableCell>
-                        {item.matchInfo ? (
-                          <div className="flex gap-1">
-                            {item.matchInfo.drawNumbers.map((num, i) => (
-                              <NumberBall key={i} number={num} size="sm" />
-                            ))}
+                            {item.strategy === "ClaudeAi" &&
+                              extractModelName(item.reasoning) && (
+                                <Badge
+                                  variant="secondary"
+                                  className="text-xs w-fit"
+                                >
+                                  {extractModelName(item.reasoning)}
+                                </Badge>
+                              )}
                           </div>
-                        ) : (
-                          <span className="text-xs text-muted-foreground">
-                            Awaiting draw
-                          </span>
-                        )}
-                      </TableCell>
-                      <TableCell>
-                        {item.matchInfo ? (
-                          <span
-                            className={cn(
-                              "text-sm font-semibold",
-                              item.matchInfo.matchedCount >= 3
-                                ? "text-green-600"
-                                : item.matchInfo.matchedCount >= 1
-                                  ? "text-orange-600"
-                                  : "text-muted-foreground"
-                            )}
-                          >
-                            {item.matchInfo.matchedCount}/6 (
-                            {item.matchInfo.matchPercentage}%)
-                          </span>
-                        ) : (
-                          <span className="text-xs text-muted-foreground">
-                            —
-                          </span>
-                        )}
-                      </TableCell>
-                    </TableRow>
-                  ))}
+                        </TableCell>
+                        <TableCell className="text-sm text-muted-foreground">
+                          {item.confidenceScore}%
+                        </TableCell>
+                        <TableCell>
+                          {item.matchInfo ? (
+                            <div className="flex gap-1">
+                              {item.matchInfo.drawNumbers.map((num, i) => (
+                                <NumberBall key={i} number={num} size="sm" />
+                              ))}
+                            </div>
+                          ) : (
+                            <span className="text-xs text-muted-foreground">
+                              Awaiting draw
+                            </span>
+                          )}
+                        </TableCell>
+                        <TableCell>
+                          {item.matchInfo ? (
+                            <span
+                              className={cn(
+                                "text-sm font-semibold",
+                                item.matchInfo.matchedCount >= 3
+                                  ? "text-green-600"
+                                  : item.matchInfo.matchedCount >= 1
+                                    ? "text-orange-600"
+                                    : "text-muted-foreground"
+                              )}
+                            >
+                              {item.matchInfo.matchedCount}/6 (
+                              {item.matchInfo.matchPercentage}%)
+                            </span>
+                          ) : (
+                            <span className="text-xs text-muted-foreground">
+                              —
+                            </span>
+                          )}
+                        </TableCell>
+                      </TableRow>
+                    );
+                  })}
                 </TableBody>
               </Table>
 

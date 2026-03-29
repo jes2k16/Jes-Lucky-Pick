@@ -22,7 +22,7 @@ export function AiTrainingPage() {
     addEntry(gameState);
     // Update expert careers with game results
     if (gameSettings) {
-      updateAfterGame(gameState, gameSettings.lottoGame);
+      updateAfterGame(gameState, gameSettings.lottoGame, gameSettings.gameMode);
     }
   };
 

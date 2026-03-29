@@ -42,9 +42,33 @@ public class ExpertCareerRepository(AppDbContext context) : IExpertCareerReposit
             existing.BestEverScore = career.BestEverScore;
             existing.AvgRoundScore = career.AvgRoundScore;
             existing.LastPlayedAt = career.LastPlayedAt;
+            existing.IsFavorite = career.IsFavorite;
             existing.UpdatedAt = DateTime.UtcNow;
         }
 
+        await context.SaveChangesAsync(ct);
+    }
+
+    public async Task PatchAsync(Guid userId, Guid id, string? name, bool? isFavorite, CancellationToken ct = default)
+    {
+        var existing = await context.ExpertCareers
+            .FirstOrDefaultAsync(c => c.Id == id && c.UserId == userId, ct);
+
+        if (existing is null) return;
+
+        if (name is not null)
+        {
+            // Validate uniqueness before rename
+            var nameConflict = await context.ExpertCareers.AnyAsync(
+                c => c.UserId == userId && c.Name == name && c.Personality == existing.Personality && c.Id != id, ct);
+            if (nameConflict) return;
+            existing.Name = name;
+        }
+
+        if (isFavorite is not null)
+            existing.IsFavorite = isFavorite.Value;
+
+        existing.UpdatedAt = DateTime.UtcNow;
         await context.SaveChangesAsync(ct);
     }
 
@@ -75,7 +99,13 @@ public class ExpertCareerRepository(AppDbContext context) : IExpertCareerReposit
 
     public async Task BulkUpsertAsync(IEnumerable<ExpertCareer> careers, CancellationToken ct = default)
     {
-        foreach (var career in careers)
+        // Deduplicate by Name+Personality — keep the record with the most games played
+        var deduplicated = careers
+            .GroupBy(c => $"{c.Name}:{c.Personality}")
+            .Select(g => g.OrderByDescending(c => c.GamesPlayed).First())
+            .ToList();
+
+        foreach (var career in deduplicated)
         {
             var existing = await context.ExpertCareers
                 .Include(c => c.LottoStats)
@@ -86,6 +116,10 @@ public class ExpertCareerRepository(AppDbContext context) : IExpertCareerReposit
 
             if (existing is null)
             {
+                // Guard against duplicate PK from corrupted client data
+                var idTaken = await context.ExpertCareers.AnyAsync(c => c.Id == career.Id, ct);
+                if (idTaken) career.Id = Guid.NewGuid();
+
                 await context.ExpertCareers.AddAsync(career, ct);
             }
             else
@@ -99,6 +133,7 @@ public class ExpertCareerRepository(AppDbContext context) : IExpertCareerReposit
                     existing.BestEverScore = career.BestEverScore;
                     existing.AvgRoundScore = career.AvgRoundScore;
                     existing.LastPlayedAt = career.LastPlayedAt;
+                    // Preserve DB isFavorite — PATCH endpoint is authoritative for that field
                     existing.UpdatedAt = DateTime.UtcNow;
 
                     foreach (var stat in career.LottoStats)

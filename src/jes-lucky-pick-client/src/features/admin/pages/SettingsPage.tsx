@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
@@ -24,7 +24,6 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Switch } from "@/components/ui/switch";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Bot, FlaskConical, Save, Loader2, Terminal } from "lucide-react";
 
@@ -36,7 +35,6 @@ type SettingsFormValues = z.infer<typeof settingsSchema>;
 
 export function SettingsPage() {
   const queryClient = useQueryClient();
-  const [isEnabled, setIsEnabled] = useState(false);
   const [message, setMessage] = useState<{
     type: "success" | "error";
     text: string;
@@ -64,14 +62,10 @@ export function SettingsPage() {
     },
   });
 
-  useEffect(() => {
-    if (settings) setIsEnabled(settings.isEnabled);
-  }, [settings?.isEnabled]);
-
   const saveMutation = useMutation({
     mutationFn: (values: SettingsFormValues) =>
       updateAiSettings({
-        isEnabled,
+        isEnabled: true,
         model: values.model,
       }),
     onSuccess: () => {
@@ -143,16 +137,6 @@ export function SettingsPage() {
         </CardHeader>
         <CardContent>
           <form onSubmit={handleSubmit(onSubmit)} className="space-y-6">
-            <div className="flex items-center justify-between">
-              <div className="space-y-0.5">
-                <Label>Enable AI Predictions</Label>
-                <p className="text-sm text-muted-foreground">
-                  Allow users to generate predictions using Claude AI
-                </p>
-              </div>
-              <Switch checked={isEnabled} onCheckedChange={setIsEnabled} />
-            </div>
-
             <div className="rounded-md bg-muted p-3">
               <div className="flex items-center gap-2 text-sm font-medium text-foreground">
                 <Terminal className="h-4 w-4" />

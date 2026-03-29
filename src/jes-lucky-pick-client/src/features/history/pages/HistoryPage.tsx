@@ -131,7 +131,7 @@ export function HistoryPage() {
               setFromDate(e.target.value);
               setPage(1);
             }}
-            className="w-auto"
+            className="w-auto dark:[color-scheme:dark]"
           />
         </div>
         <div className="space-y-1">
@@ -143,7 +143,7 @@ export function HistoryPage() {
               setToDate(e.target.value);
               setPage(1);
             }}
-            className="w-auto"
+            className="w-auto dark:[color-scheme:dark]"
           />
         </div>
         {(fromDate || toDate) && (
@@ -195,6 +195,7 @@ export function HistoryPage() {
                     type="date"
                     value={manualDate}
                     onChange={(e) => setManualDate(e.target.value)}
+                    className="dark:[color-scheme:dark]"
                   />
                 </div>
                 <div className="space-y-1">

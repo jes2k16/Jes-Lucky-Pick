@@ -13,6 +13,7 @@ public class TrainingSession
     public int SurvivingExperts { get; set; }
     public string SettingsJson { get; set; } = string.Empty;
     public string? WinnerJson { get; set; }
+    public string? WinnerProfileJson { get; set; }
     public string? LeaderboardJson { get; set; }
     public DateTime PlayedAt { get; set; }
     public DateTime CreatedAt { get; set; }

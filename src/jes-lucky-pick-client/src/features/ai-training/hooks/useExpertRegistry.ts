@@ -13,31 +13,11 @@ import type {
   Expert,
   Manager,
 } from "../types/game";
-import { getExpertCareers, syncExpertCareers } from "../api/training-api";
+import { getExpertCareers, syncExpertCareers, patchExpertCareer } from "../api/training-api";
 
-const STORAGE_KEY = "jes-expert-registry";
 const MAX_MEMORIES = 20;
 const DECAY_FACTOR = 0.7;
 const LEARNING_RATE = 0.3;
-
-// ── localStorage helpers ──
-
-function loadRegistry(): ExpertRegistry {
-  try {
-    const raw = localStorage.getItem(STORAGE_KEY);
-    if (raw) {
-      const parsed = JSON.parse(raw);
-      if (parsed.version === 1) return parsed;
-    }
-  } catch {
-    // corrupt data, start fresh
-  }
-  return { version: 1, experts: [] };
-}
-
-function saveRegistry(registry: ExpertRegistry) {
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(registry));
-}
 
 // ── Accumulation helpers ──
 
@@ -77,7 +57,8 @@ function buildGameMemory(
   expert: Expert,
   manager: Manager,
   gameId: string,
-  result: string
+  result: string,
+  mode?: "simulation" | "ai-agent"
 ): GameMemory {
   const bestTry = expert.tryHistory.reduce(
     (best, t) => (t.stars > best.stars ? t : best),
@@ -91,7 +72,6 @@ function buildGameMemory(
   const topConfidence = getTopN(expert.confidenceMap, 5);
   const bottomConfidence = getBottomN(expert.confidenceMap, 5);
 
-  // Auto-generate lesson for simulation mode
   const lesson =
     matchedNumbers.length > 0
       ? `Matched ${matchedNumbers.join(", ")} in best try (${bestTry.stars}★). Top confidence: ${topConfidence.slice(0, 3).join(", ")}.`
@@ -109,6 +89,7 @@ function buildGameMemory(
     topConfidence,
     bottomConfidence,
     lesson,
+    ...(mode !== undefined ? { mode } : {}),
   };
 }
 
@@ -121,7 +102,6 @@ function buildCareerSummary(
     m.result.startsWith("eliminated")
   ).length;
 
-  // Find recurring numbers across secrets
   const secretCounts: Record<number, number> = {};
   const guessCounts: Record<number, number> = {};
   for (const m of overflowMemories) {
@@ -167,7 +147,6 @@ export function buildSeededConfidenceMap(
 ): Record<number, number> {
   const stats = career.byLottoGame[lottoGame];
   if (!stats) {
-    // No history for this lotto game, return zero map
     const map: Record<number, number> = {};
     for (let i = settings.numberRangeMin; i <= settings.numberRangeMax; i++) {
       map[i] = 0;
@@ -175,13 +154,11 @@ export function buildSeededConfidenceMap(
     return map;
   }
 
-  // Start with cumulative confidence, ensure all numbers in range exist
   const map: Record<number, number> = {};
   for (let i = settings.numberRangeMin; i <= settings.numberRangeMax; i++) {
     map[i] = stats.confidenceMap[i] ?? 0;
   }
 
-  // Veteran's edge: high performers get a boost
   if (career.gamesPlayed > 0 && career.wins / career.gamesPlayed > 0.3) {
     const topNumbers = getTopN(map, 6);
     for (const n of topNumbers) {
@@ -213,7 +190,6 @@ export function buildCareerContext(
     .map((n) => `${n}(${stats.confidenceMap[n]?.toFixed(2) ?? "0"})`)
     .join(", ");
 
-  // Find least tested numbers
   const allNumbers = Object.entries(stats.confidenceMap);
   const leastTested = allNumbers
     .filter(([, v]) => Math.abs(v) < 0.05)
@@ -223,7 +199,6 @@ export function buildCareerContext(
 
   const lines: string[] = [];
 
-  // Career summary
   lines.push(`[YOUR CAREER HISTORY — ${career.name} the ${career.personality}]`);
   lines.push(
     `You are a veteran expert. You have played ${stats.gamesPlayed} games of ${lottoGame}.`
@@ -234,7 +209,6 @@ export function buildCareerContext(
   lines.push(`Best ever score: ${career.bestEverScore}★.`);
   lines.push("");
 
-  // Cumulative knowledge
   lines.push("[CUMULATIVE KNOWLEDGE]");
   lines.push(`Numbers you trust most (high cumulative confidence): ${topNumbers}`);
   lines.push(`Numbers you avoid (low cumulative confidence): ${bottomNumbers}`);
@@ -243,17 +217,13 @@ export function buildCareerContext(
   }
   lines.push("");
 
-  // Game-by-game memory with progressive compression
   const memories = stats.gameMemories;
   if (memories.length > 0) {
-    // Tier 1: last 5 games in full detail
     const tier1 = memories.slice(-5);
-    // Tier 2: games 6-20 condensed
     const tier2 = memories.slice(0, Math.max(0, memories.length - 5));
 
     lines.push(`[GAME-BY-GAME MEMORY — ${memories.length} games on record]`);
 
-    // Tier 2 condensed (if any)
     if (tier2.length > 0) {
       const t2Wins = tier2.filter((m) => m.result === "won").length;
       const t2Elims = tier2.filter((m) => m.result.startsWith("eliminated")).length;
@@ -261,7 +231,6 @@ export function buildCareerContext(
       const t2AvgScore =
         tier2.reduce((s, m) => s + m.bestScore, 0) / tier2.length;
 
-      // Collect recurring high-confidence numbers from tier 2
       const t2SecretCounts: Record<number, number> = {};
       for (const m of tier2) {
         for (const n of m.secretCombo)
@@ -273,7 +242,6 @@ export function buildCareerContext(
         .slice(0, 5)
         .map(([k]) => k);
 
-      // Collect key lessons
       const keyLessons = tier2
         .filter((m) => m.bestScore >= 3 || m.result === "won")
         .slice(-3)
@@ -292,7 +260,6 @@ export function buildCareerContext(
       lines.push("");
     }
 
-    // Tier 1 full detail
     for (const m of tier1) {
       lines.push(
         `Game (${m.playedAt.slice(0, 10)}): ${m.result}. Best: ${m.bestScore}★ with [${m.bestGuess.join(", ")}].`
@@ -305,7 +272,6 @@ export function buildCareerContext(
     lines.push("");
   }
 
-  // Career summary for overflow (games older than stored memories)
   if (stats.careerSummary) {
     const cs = stats.careerSummary;
     lines.push(
@@ -320,7 +286,6 @@ export function buildCareerContext(
     lines.push("");
   }
 
-  // Patterns across all memories
   const allMemories = stats.gameMemories;
   if (allMemories.length >= 3) {
     const secretCounts: Record<number, number> = {};
@@ -374,23 +339,16 @@ export function buildCareerContext(
 // ── Hook ──
 
 export function useExpertRegistry() {
-  const [registry, setRegistry] = useState<ExpertRegistry>(loadRegistry);
+  const [registry, setRegistry] = useState<ExpertRegistry>({ version: 1, experts: [] });
 
-  // Background sync on mount
+  // Load from DB on mount
   useEffect(() => {
     getExpertCareers()
-      .then((serverCareers) => {
-        if (serverCareers.length === 0) return;
-
-        setRegistry((prev) => {
-          const merged = mergeRegistries(prev.experts, serverCareers);
-          const updated: ExpertRegistry = { version: 1, experts: merged };
-          saveRegistry(updated);
-          return updated;
-        });
+      .then((careers) => {
+        setRegistry({ version: 1, experts: careers });
       })
       .catch(() => {
-        // Server unavailable, localStorage is authoritative
+        // Server unavailable — registry stays empty for this session
       });
   }, []);
 
@@ -415,7 +373,7 @@ export function useExpertRegistry() {
   );
 
   const updateAfterGame = useCallback(
-    (gameState: GameState, lottoGame: LottoGameType) => {
+    (gameState: GameState, lottoGame: LottoGameType, mode?: "simulation" | "ai-agent") => {
       setRegistry((prev) => {
         const updated = { ...prev, experts: [...prev.experts] };
         const gameId = crypto.randomUUID();
@@ -423,7 +381,6 @@ export function useExpertRegistry() {
 
         for (const manager of gameState.managers) {
           for (const expert of manager.experts) {
-            // Find or create career
             let careerIdx = updated.experts.findIndex(
               (c) => c.name === expert.name && c.personality === expert.personality
             );
@@ -448,7 +405,6 @@ export function useExpertRegistry() {
             const career = { ...updated.experts[careerIdx] };
             updated.experts[careerIdx] = career;
 
-            // Update career stats
             career.gamesPlayed += 1;
             if (expert.status === "winner") career.wins += 1;
             if (expert.status === "eliminated") career.eliminations += 1;
@@ -465,7 +421,6 @@ export function useExpertRegistry() {
               career.bestEverScore = bestThisGame;
             }
 
-            // Rolling average
             if (roundsThisGame > 0) {
               const avgThisGame =
                 expert.roundScores.reduce((s, r) => s + r, 0) / roundsThisGame;
@@ -478,7 +433,6 @@ export function useExpertRegistry() {
                   : avgThisGame;
             }
 
-            // Update lotto-specific stats
             career.byLottoGame = { ...career.byLottoGame };
             const existingStats = career.byLottoGame[lottoGame];
 
@@ -498,23 +452,19 @@ export function useExpertRegistry() {
             if (expert.status === "winner") stats.wins += 1;
             if (expert.status === "eliminated") stats.eliminations += 1;
 
-            // Merge confidence maps
             stats.confidenceMap = mergeConfidenceMaps(
               stats.confidenceMap,
               expert.confidenceMap
             );
 
-            // Build game result string
             let resultStr = "survived_time_up";
             if (expert.status === "winner") resultStr = "won";
             else if (expert.status === "eliminated")
               resultStr = `eliminated_round_${expert.eliminatedAtRound}`;
 
-            // Add game memory
-            const memory = buildGameMemory(expert, manager, gameId, resultStr);
+            const memory = buildGameMemory(expert, manager, gameId, resultStr, mode);
             stats.gameMemories = [...stats.gameMemories, memory];
 
-            // Prune to MAX_MEMORIES, build career summary for overflow
             if (stats.gameMemories.length > MAX_MEMORIES) {
               const overflow = stats.gameMemories.slice(
                 0,
@@ -522,7 +472,6 @@ export function useExpertRegistry() {
               );
               stats.gameMemories = stats.gameMemories.slice(-MAX_MEMORIES);
 
-              // Merge overflow into existing career summary
               const existingSummaryMemories = stats.careerSummary
                 ? Array(stats.careerSummary.totalGames).fill(null)
                 : [];
@@ -537,7 +486,6 @@ export function useExpertRegistry() {
                 ),
                 ...overflow,
               ]);
-              // Fix total count
               stats.careerSummary.totalGames =
                 (existingStats?.careerSummary?.totalGames ?? 0) + overflow.length;
             }
@@ -546,12 +494,8 @@ export function useExpertRegistry() {
           }
         }
 
-        saveRegistry(updated);
-
-        // Fire-and-forget sync to server
-        syncExpertCareers(updated.experts).catch(() => {
-          // Will retry on next page load
-        });
+        // Persist to DB — fire-and-forget
+        syncExpertCareers(updated.experts).catch(() => {});
 
         return updated;
       });
@@ -559,36 +503,102 @@ export function useExpertRegistry() {
     []
   );
 
+  const getCareerById = useCallback(
+    (id: string): ExpertCareer | null =>
+      registry.experts.find((e) => e.id === id) ?? null,
+    [registry]
+  );
+
+  const updateCareer = useCallback(
+    (id: string, updates: Partial<Pick<ExpertCareer, "name" | "isFavorite">>) => {
+      // Optimistic update in-memory
+      setRegistry((prev) => {
+        const idx = prev.experts.findIndex((e) => e.id === id);
+        if (idx === -1) return prev;
+        return {
+          ...prev,
+          experts: prev.experts.map((e, i) => (i === idx ? { ...e, ...updates } : e)),
+        };
+      });
+      // Persist to DB
+      patchExpertCareer(id, updates).catch(() => {});
+    },
+    []
+  );
+
+  const deduplicateRegistry = useCallback((): { fixed: number; names: string[] } => {
+    const experts = registry.experts;
+
+    // Pass 1: deduplicate by ID — keep first occurrence
+    const seenIds = new Set<string>();
+    const deduped = experts.filter((e) => {
+      if (seenIds.has(e.id)) return false;
+      seenIds.add(e.id);
+      return true;
+    });
+    const idFixed = experts.length - deduped.length;
+
+    // Pass 2: deduplicate by name — rename duplicates
+    const nameCounts = new Map<string, ExpertCareer[]>();
+    for (const expert of deduped) {
+      const key = expert.name.toLowerCase();
+      const group = nameCounts.get(key) ?? [];
+      group.push(expert);
+      nameCounts.set(key, group);
+    }
+
+    const fixed: string[] = [];
+    const updatedExperts = [...deduped];
+    if (idFixed > 0) fixed.push(`${idFixed} duplicate ID(s) removed`);
+
+    for (const [, group] of nameCounts) {
+      if (group.length <= 1) continue;
+
+      const sorted = [...group].sort(
+        (a, b) =>
+          (b.byLottoGame["6/42"]?.gamesPlayed ?? 0) -
+          (a.byLottoGame["6/42"]?.gamesPlayed ?? 0)
+      );
+
+      for (let i = 1; i < sorted.length; i++) {
+        const career = sorted[i];
+        const baseName = career.name;
+        let suffix = i + 1;
+        let newName = `${baseName}-${suffix}`;
+
+        while (
+          updatedExperts.some(
+            (e) =>
+              e.id !== career.id && e.name.toLowerCase() === newName.toLowerCase()
+          )
+        ) {
+          suffix++;
+          newName = `${baseName}-${suffix}`;
+        }
+
+        const idx = updatedExperts.findIndex((e) => e.id === career.id);
+        if (idx !== -1) {
+          updatedExperts[idx] = { ...updatedExperts[idx], name: newName };
+          fixed.push(`${baseName} (${career.personality}) → ${newName}`);
+          patchExpertCareer(career.id, { name: newName }).catch(() => {});
+        }
+      }
+    }
+
+    if (fixed.length > 0 || idFixed > 0) {
+      setRegistry({ version: 1, experts: updatedExperts });
+    }
+
+    return { fixed: fixed.length + (idFixed > 0 ? 1 : 0), names: fixed };
+  }, [registry]);
+
   return {
     registry,
     getCareer,
+    getCareerById,
     getVeteranCount,
     updateAfterGame,
+    updateCareer,
+    deduplicateRegistry,
   };
-}
-
-// ── Merge registries (localStorage + server) ──
-
-function mergeRegistries(
-  local: ExpertCareer[],
-  server: ExpertCareer[]
-): ExpertCareer[] {
-  const merged = new Map<string, ExpertCareer>();
-
-  // Index local careers
-  for (const career of local) {
-    merged.set(`${career.name}:${career.personality}`, career);
-  }
-
-  // Merge server careers (higher gamesPlayed wins)
-  for (const serverCareer of server) {
-    const key = `${serverCareer.name}:${serverCareer.personality}`;
-    const existing = merged.get(key);
-
-    if (!existing || serverCareer.gamesPlayed > existing.gamesPlayed) {
-      merged.set(key, serverCareer);
-    }
-  }
-
-  return Array.from(merged.values());
 }

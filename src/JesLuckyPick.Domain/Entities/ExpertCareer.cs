@@ -13,6 +13,7 @@ public class ExpertCareer
     public int BestEverScore { get; set; }
     public decimal AvgRoundScore { get; set; }
     public DateTime? LastPlayedAt { get; set; }
+    public bool IsFavorite { get; set; }
     public DateTime CreatedAt { get; set; }
     public DateTime UpdatedAt { get; set; }
 

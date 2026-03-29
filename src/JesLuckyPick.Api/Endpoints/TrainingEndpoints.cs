@@ -31,6 +31,7 @@ public static class TrainingEndpoints
                 SurvivingExperts = request.SurvivingExperts,
                 SettingsJson = request.SettingsJson,
                 WinnerJson = request.WinnerJson,
+                WinnerProfileJson = request.WinnerProfileJson,
                 LeaderboardJson = request.LeaderboardJson,
                 PlayedAt = request.PlayedAt,
                 CreatedAt = DateTime.UtcNow
@@ -44,7 +45,7 @@ public static class TrainingEndpoints
             ITrainingSessionRepository sessionRepo,
             ClaimsPrincipal user,
             int page = 1,
-            int pageSize = 20) =>
+            int pageSize = 5000) =>
         {
             var userId = Guid.Parse(user.FindFirstValue(ClaimTypes.NameIdentifier)!);
             var (items, totalCount) = await sessionRepo.GetByUserPagedAsync(userId, page, pageSize);
@@ -56,10 +57,20 @@ public static class TrainingEndpoints
                     s.Id, s.GameMode, s.LottoGameCode, s.Result,
                     s.DurationSeconds, s.TotalRounds, s.TotalExperts,
                     s.SurvivingExperts, s.SettingsJson, s.WinnerJson,
-                    s.LeaderboardJson, s.PlayedAt
+                    s.WinnerProfileJson, s.LeaderboardJson, s.PlayedAt
                 }),
                 totalCount, page, pageSize
             });
+        });
+
+        group.MapDelete("/sessions/{id:guid}", async (
+            Guid id,
+            ITrainingSessionRepository sessionRepo,
+            ClaimsPrincipal user) =>
+        {
+            var userId = Guid.Parse(user.FindFirstValue(ClaimTypes.NameIdentifier)!);
+            await sessionRepo.DeleteAsync(userId, id);
+            return Results.NoContent();
         });
 
         group.MapGet("/careers", async (
@@ -81,6 +92,7 @@ public static class TrainingEndpoints
                 BestEverScore = c.BestEverScore,
                 AvgRoundScore = c.AvgRoundScore,
                 LastPlayedAt = c.LastPlayedAt,
+                IsFavorite = c.IsFavorite,
                 LottoStats = c.LottoStats.Select(s => new ExpertLottoStatsDto
                 {
                     LottoGameCode = s.LottoGameCode,
@@ -141,6 +153,17 @@ public static class TrainingEndpoints
             return Results.Ok(new { synced = careers.Count });
         });
 
+        group.MapPatch("/careers/{id:guid}", async (
+            Guid id,
+            ExpertCareerPatchRequest request,
+            IExpertCareerRepository careerRepo,
+            ClaimsPrincipal user) =>
+        {
+            var userId = Guid.Parse(user.FindFirstValue(ClaimTypes.NameIdentifier)!);
+            await careerRepo.PatchAsync(userId, id, request.Name, request.IsFavorite);
+            return Results.NoContent();
+        });
+
         group.MapGet("/careers/{name}/{personality}/stats", async (
             string name,
             string personality,
@@ -164,6 +187,7 @@ public static class TrainingEndpoints
                 BestEverScore = career.BestEverScore,
                 AvgRoundScore = career.AvgRoundScore,
                 LastPlayedAt = career.LastPlayedAt,
+                IsFavorite = career.IsFavorite,
                 LottoStats = career.LottoStats.Select(s => new ExpertLottoStatsDto
                 {
                     LottoGameCode = s.LottoGameCode,
@@ -191,6 +215,7 @@ public record TrainingSessionRequest(
     int SurvivingExperts,
     string SettingsJson,
     string? WinnerJson,
+    string? WinnerProfileJson,
     string? LeaderboardJson,
     DateTime PlayedAt);
 
@@ -206,7 +231,14 @@ public class ExpertCareerDto
     public int BestEverScore { get; set; }
     public decimal AvgRoundScore { get; set; }
     public DateTime? LastPlayedAt { get; set; }
+    public bool IsFavorite { get; set; }
     public List<ExpertLottoStatsDto> LottoStats { get; set; } = [];
+}
+
+public class ExpertCareerPatchRequest
+{
+    public string? Name { get; set; }
+    public bool? IsFavorite { get; set; }
 }
 
 public class ExpertLottoStatsDto

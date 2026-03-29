@@ -43,6 +43,7 @@ interface ExpertCareerApiDto {
   bestEverScore: number;
   avgRoundScore: number;
   lastPlayedAt: string | null;
+  isFavorite: boolean;
   lottoStats: {
     lottoGameCode: string;
     gamesPlayed: number;
@@ -78,6 +79,7 @@ function mapApiCareerToLocal(dto: ExpertCareerApiDto): ExpertCareer {
     bestEverScore: dto.bestEverScore,
     avgRoundScore: dto.avgRoundScore,
     lastPlayedAt: dto.lastPlayedAt,
+    isFavorite: dto.isFavorite,
     byLottoGame,
   };
 }
@@ -94,6 +96,7 @@ function mapLocalCareerToApi(career: ExpertCareer) {
     bestEverScore: career.bestEverScore,
     avgRoundScore: career.avgRoundScore,
     lastPlayedAt: career.lastPlayedAt,
+    isFavorite: career.isFavorite ?? false,
     lottoStats: Object.values(career.byLottoGame).map((s) => ({
       lottoGameCode: s.lottoGameCode,
       gamesPlayed: s.gamesPlayed,
@@ -112,9 +115,28 @@ export async function getExpertCareers(): Promise<ExpertCareer[]> {
 }
 
 export async function syncExpertCareers(careers: ExpertCareer[]): Promise<{ synced: number }> {
-  const payload = careers.map(mapLocalCareerToApi);
+  // Deduplicate by name+personality, then by id — keep highest gamesPlayed in each case
+  const byNamePersonality = new Map<string, ExpertCareer>();
+  for (const c of careers) {
+    const key = `${c.name}:${c.personality}`;
+    const ex = byNamePersonality.get(key);
+    if (!ex || c.gamesPlayed > ex.gamesPlayed) byNamePersonality.set(key, c);
+  }
+  const byId = new Map<string, ExpertCareer>();
+  for (const c of byNamePersonality.values()) {
+    const ex = byId.get(c.id);
+    if (!ex || c.gamesPlayed > ex.gamesPlayed) byId.set(c.id, c);
+  }
+  const payload = Array.from(byId.values()).map(mapLocalCareerToApi);
   const { data } = await apiClient.post("/training/careers/sync", payload);
   return data;
+}
+
+export async function patchExpertCareer(
+  id: string,
+  updates: { name?: string; isFavorite?: boolean }
+): Promise<void> {
+  await apiClient.patch(`/training/careers/${id}`, updates);
 }
 
 export async function getExpertCareerStats(

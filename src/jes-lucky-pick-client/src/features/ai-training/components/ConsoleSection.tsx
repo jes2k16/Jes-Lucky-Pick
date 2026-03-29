@@ -36,7 +36,7 @@ let tabCounter = 1;
 function createTab(): Tab {
   const id = crypto.randomUUID();
   const label = `Terminal ${tabCounter++}`;
-  return { id, label, mode: "print", model: MODELS[0].value };
+  return { id, label, mode: "interactive", model: MODELS[0].value };
 }
 
 export function ConsoleSection() {

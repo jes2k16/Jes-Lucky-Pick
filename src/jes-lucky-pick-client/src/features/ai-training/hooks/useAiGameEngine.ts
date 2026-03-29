@@ -37,6 +37,30 @@ const EXPERT_NAMES = [
   "Sierra", "Tango", "Uniform", "Victor", "Whiskey", "X-Ray",
 ];
 
+function pickName(
+  startIdx: number,
+  personality: ExpertPersonality,
+  usedInGame: Set<string>,
+  registry?: ExpertRegistry
+): { name: string; nextIdx: number } {
+  let idx = startIdx;
+  for (let attempts = 0; attempts < EXPERT_NAMES.length * 20; attempts++) {
+    const base = EXPERT_NAMES[idx % EXPERT_NAMES.length];
+    const cycle = Math.floor(idx / EXPERT_NAMES.length);
+    const candidate = cycle === 0 ? base : `${base}-${cycle + 1}`;
+    if (!usedInGame.has(candidate)) {
+      const takenByOther = registry?.experts.some(
+        (e) => e.name.toLowerCase() === candidate.toLowerCase() && e.personality !== personality
+      ) ?? false;
+      if (!takenByOther) {
+        return { name: candidate, nextIdx: idx + 1 };
+      }
+    }
+    idx++;
+  }
+  return { name: `Expert-${Date.now() % 10000}`, nextIdx: startIdx + 1 };
+}
+
 function createInitialState(settings: GameSettings): GameState {
   return {
     phase: "setup",
@@ -67,6 +91,7 @@ function createManagers(
 ): Manager[] {
   const managers: Manager[] = [];
   let nameIdx = 0;
+  const usedInGame = new Set<string>();
 
   for (let m = 0; m < settings.managerCount; m++) {
     const managerId = `mgr-${m + 1}`;
@@ -76,7 +101,9 @@ function createManagers(
     for (let e = 0; e < settings.expertsPerManager; e++) {
       const expertId = `${managerId}-exp-${e + 1}`;
       const personality = PERSONALITIES[e % PERSONALITIES.length];
-      const name = EXPERT_NAMES[nameIdx++ % EXPERT_NAMES.length];
+      const { name, nextIdx } = pickName(nameIdx, personality, usedInGame, registry);
+      nameIdx = nextIdx;
+      usedInGame.add(name);
 
       const useProfile =
         importedProfile && m === 0 && e === 0 && personality === importedProfile.personality;
