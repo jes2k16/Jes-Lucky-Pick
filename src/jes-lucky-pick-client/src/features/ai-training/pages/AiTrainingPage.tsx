@@ -7,46 +7,39 @@ import { GameHistoryGrid } from "@/features/ai-training/components/game/GameHist
 import { NumberTrainingGame } from "@/features/ai-training/components/game/NumberTrainingGame";
 import { GameSetupModal } from "@/features/ai-training/components/game/GameSetupModal";
 import { ModeComparisonModal } from "@/features/ai-training/components/game/ModeComparisonModal";
+import { useTrainingSessionStore } from "@/stores/trainingSessionStore";
 import type { GameSettings, GameState, WinnerProfile } from "@/features/ai-training/types/game";
 
 export function AiTrainingPage() {
-  const [showGame, setShowGame] = useState(false);
   const [showSetupModal, setShowSetupModal] = useState(false);
   const [showModeComparison, setShowModeComparison] = useState(false);
-  const [gameSettings, setGameSettings] = useState<GameSettings | null>(null);
-  const [importedProfile, setImportedProfile] = useState<WinnerProfile | null>(null);
+  const { isGameActive, gameSettings, importedProfile, startSession, endSession } =
+    useTrainingSessionStore();
   const { history, addEntry, deleteEntry } = useGameHistory();
   const { registry, getVeteranCount, updateAfterGame } = useExpertRegistry();
 
   const handleGameEnd = (gameState: GameState) => {
     addEntry(gameState);
-    // Update expert careers with game results
     if (gameSettings) {
       updateAfterGame(gameState, gameSettings.lottoGame, gameSettings.gameMode);
     }
   };
 
   const handleModalStart = (settings: GameSettings, profile?: WinnerProfile) => {
-    setGameSettings(settings);
-    setImportedProfile(profile ?? null);
+    startSession(settings, profile);
     setShowSetupModal(false);
-    setShowGame(true);
   };
 
   const handleBack = () => {
-    setShowGame(false);
-    setGameSettings(null);
-    setImportedProfile(null);
+    endSession();
   };
 
   const handlePlayAgain = () => {
-    setShowGame(false);
-    setGameSettings(null);
-    setImportedProfile(null);
+    endSession();
     setShowSetupModal(true);
   };
 
-  if (showGame && gameSettings) {
+  if (isGameActive && gameSettings) {
     return (
       <div className="flex flex-col h-[calc(100vh-4rem)]">
         <NumberTrainingGame

@@ -198,8 +198,8 @@ public class DatabaseSeeder(
                 Id = Guid.NewGuid(), Role = "Manager", Personality = null, Model = defaultModel,
                 IsActive = true, CreatedAt = now, UpdatedAt = now,
                 SystemPrompt = """
-                    You are a Manager in a number guessing competition.
-                    Your team of Experts is trying to guess a secret {combinationSize}-number combination from range {numberRange}.
+                    You are a Manager agent in the Jes Lucky Pick lotto number guessing game.
+                    Your team of Expert agents is trying to guess a secret {combinationSize}-number combination from range {numberRange}.
 
                     Round {roundNumber} results:
                     {expertResults}
@@ -215,15 +215,16 @@ public class DatabaseSeeder(
                 Id = Guid.NewGuid(), Role = "Expert", Personality = "Scanner", Model = defaultModel,
                 IsActive = true, CreatedAt = now, UpdatedAt = now,
                 SystemPrompt = """
+                    You are a Scanner expert agent in the Jes Lucky Pick lotto number guessing game.
                     Output ONLY a JSON integer array. No text, no explanation, no markdown.
 
-                    Task: pick {combinationSize} unique integers from {numberRange}.
-                    Strategy: maximize coverage — choose numbers not yet tested.
-                    Round {roundNumber}, Try {tryNumber} of 6.
-                    Confidence scores (higher = more likely correct): {confidenceMap}
-                    Past guesses: {tryHistory}
+                    Your task: pick {combinationSize} unique integers from range {numberRange}.
+                    Your strategy: maximize coverage — choose numbers not yet tested.
+                    Current state: Round {roundNumber}, Try {tryNumber} of 6.
+                    Your confidence scores (higher = more likely correct): {confidenceMap}
+                    Your past guesses this round: {tryHistory}
 
-                    Response format (nothing else): [n1, n2, n3, n4, n5, n6]
+                    Respond with ONLY a JSON array like: [n1, n2, n3, n4, n5, n6]
                     """
             },
             new()
@@ -231,15 +232,16 @@ public class DatabaseSeeder(
                 Id = Guid.NewGuid(), Role = "Expert", Personality = "Sticky", Model = defaultModel,
                 IsActive = true, CreatedAt = now, UpdatedAt = now,
                 SystemPrompt = """
+                    You are a Sticky expert agent in the Jes Lucky Pick lotto number guessing game.
                     Output ONLY a JSON integer array. No text, no explanation, no markdown.
 
-                    Task: pick {combinationSize} unique integers from {numberRange}.
-                    Strategy: keep numbers from high-scoring tries, swap only underperformers.
-                    Round {roundNumber}, Try {tryNumber} of 6.
-                    Confidence scores (higher = more likely correct): {confidenceMap}
-                    Past guesses: {tryHistory}
+                    Your task: pick {combinationSize} unique integers from range {numberRange}.
+                    Your strategy: keep numbers from high-scoring tries, swap only underperformers.
+                    Current state: Round {roundNumber}, Try {tryNumber} of 6.
+                    Your confidence scores (higher = more likely correct): {confidenceMap}
+                    Your past guesses this round: {tryHistory}
 
-                    Response format (nothing else): [n1, n2, n3, n4, n5, n6]
+                    Respond with ONLY a JSON array like: [n1, n2, n3, n4, n5, n6]
                     """
             },
             new()
@@ -247,15 +249,16 @@ public class DatabaseSeeder(
                 Id = Guid.NewGuid(), Role = "Expert", Personality = "Gambler", Model = defaultModel,
                 IsActive = true, CreatedAt = now, UpdatedAt = now,
                 SystemPrompt = """
+                    You are a Gambler expert agent in the Jes Lucky Pick lotto number guessing game.
                     Output ONLY a JSON integer array. No text, no explanation, no markdown.
 
-                    Task: pick {combinationSize} unique integers from {numberRange}.
-                    Strategy: make large random swaps between tries to chase a lucky combination.
-                    Round {roundNumber}, Try {tryNumber} of 6.
-                    Confidence scores (higher = more likely correct): {confidenceMap}
-                    Past guesses: {tryHistory}
+                    Your task: pick {combinationSize} unique integers from range {numberRange}.
+                    Your strategy: make large random swaps between tries to chase a lucky combination.
+                    Current state: Round {roundNumber}, Try {tryNumber} of 6.
+                    Your confidence scores (higher = more likely correct): {confidenceMap}
+                    Your past guesses this round: {tryHistory}
 
-                    Response format (nothing else): [n1, n2, n3, n4, n5, n6]
+                    Respond with ONLY a JSON array like: [n1, n2, n3, n4, n5, n6]
                     """
             },
             new()
@@ -263,15 +266,16 @@ public class DatabaseSeeder(
                 Id = Guid.NewGuid(), Role = "Expert", Personality = "Analyst", Model = defaultModel,
                 IsActive = true, CreatedAt = now, UpdatedAt = now,
                 SystemPrompt = """
+                    You are an Analyst expert agent in the Jes Lucky Pick lotto number guessing game.
                     Output ONLY a JSON integer array. No text, no explanation, no markdown.
 
-                    Task: pick {combinationSize} unique integers from {numberRange}.
-                    Strategy: divide the range into sections and methodically test each section.
-                    Round {roundNumber}, Try {tryNumber} of 6.
-                    Confidence scores (higher = more likely correct): {confidenceMap}
-                    Past guesses: {tryHistory}
+                    Your task: pick {combinationSize} unique integers from range {numberRange}.
+                    Your strategy: divide the range into sections and methodically test each section.
+                    Current state: Round {roundNumber}, Try {tryNumber} of 6.
+                    Your confidence scores (higher = more likely correct): {confidenceMap}
+                    Your past guesses this round: {tryHistory}
 
-                    Response format (nothing else): [n1, n2, n3, n4, n5, n6]
+                    Respond with ONLY a JSON array like: [n1, n2, n3, n4, n5, n6]
                     """
             }
         };

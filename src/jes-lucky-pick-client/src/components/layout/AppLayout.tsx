@@ -18,6 +18,7 @@ import {
 } from "lucide-react";
 import { useAuthStore } from "@/stores/authStore";
 import { useUiStore } from "@/stores/uiStore";
+import { AiTrainingPage } from "@/features/ai-training/pages/AiTrainingPage";
 import { setAccessToken } from "@/lib/api-client";
 import apiClient from "@/lib/api-client";
 import { fetchDashboardStats } from "@/features/dashboard/api/dashboardApi";
@@ -299,7 +300,11 @@ export function AppLayout() {
 
       <SidebarInset>
         <main className="flex-1 overflow-auto p-6">
-          <Outlet />
+          {/* Keep AiTrainingPage always mounted so game engine survives navigation */}
+          <div className={location.pathname === "/model-training" ? "" : "hidden"}>
+            <AiTrainingPage />
+          </div>
+          {location.pathname !== "/model-training" && <Outlet />}
         </main>
       </SidebarInset>
     </SidebarProvider>

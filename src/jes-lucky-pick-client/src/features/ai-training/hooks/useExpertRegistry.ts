@@ -199,9 +199,9 @@ export function buildCareerContext(
 
   const lines: string[] = [];
 
-  lines.push(`[YOUR CAREER HISTORY — ${career.name} the ${career.personality}]`);
+  lines.push(`== Career History for ${career.name} (${career.personality} personality) ==`);
   lines.push(
-    `You are a veteran expert. You have played ${stats.gamesPlayed} games of ${lottoGame}.`
+    `You are a veteran expert agent in the Jes Lucky Pick game. You have played ${stats.gamesPlayed} games of ${lottoGame}.`
   );
   lines.push(
     `Win rate: ${career.wins}/${career.gamesPlayed} (${winRate}%). Eliminations: ${career.eliminations}.`
@@ -209,7 +209,7 @@ export function buildCareerContext(
   lines.push(`Best ever score: ${career.bestEverScore}★.`);
   lines.push("");
 
-  lines.push("[CUMULATIVE KNOWLEDGE]");
+  lines.push("== Cumulative Knowledge ==");
   lines.push(`Numbers you trust most (high cumulative confidence): ${topNumbers}`);
   lines.push(`Numbers you avoid (low cumulative confidence): ${bottomNumbers}`);
   if (leastTested) {
@@ -222,7 +222,7 @@ export function buildCareerContext(
     const tier1 = memories.slice(-5);
     const tier2 = memories.slice(0, Math.max(0, memories.length - 5));
 
-    lines.push(`[GAME-BY-GAME MEMORY — ${memories.length} games on record]`);
+    lines.push(`== Game-by-Game Memory (${memories.length} games on record) ==`);
 
     if (tier2.length > 0) {
       const t2Wins = tier2.filter((m) => m.result === "won").length;
@@ -275,7 +275,7 @@ export function buildCareerContext(
   if (stats.careerSummary) {
     const cs = stats.careerSummary;
     lines.push(
-      `[EARLY CAREER SUMMARY — ${cs.totalGames} older games not shown in detail]`
+      `== Early Career Summary (${cs.totalGames} older games not shown in detail) ==`
     );
     lines.push(cs.trend);
     if (cs.recurringSecretNumbers.length > 0) {
@@ -311,7 +311,7 @@ export function buildCareerContext(
       .map((m) => (m.result === "won" ? "W" : m.result.startsWith("eliminated") ? "E" : "S"))
       .join(", ");
 
-    lines.push("[PATTERNS YOU SHOULD NOTICE]");
+    lines.push("== Patterns to Notice ==");
     if (recurringSecrets.length > 0) {
       lines.push(
         `- Numbers in multiple secrets: ${recurringSecrets.map(([k, c]) => `${k}(${c}x)`).join(", ")}`
@@ -326,7 +326,7 @@ export function buildCareerContext(
     lines.push("");
   }
 
-  lines.push("[INSTRUCTIONS]");
+  lines.push("== Instructions ==");
   lines.push(
     "Use your career history to inform your strategy. You are not starting from zero — you have experience. " +
       "Lean on numbers you've seen succeed, but don't ignore new possibilities. " +

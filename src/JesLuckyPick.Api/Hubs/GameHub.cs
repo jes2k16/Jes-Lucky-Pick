@@ -83,10 +83,10 @@ public class GameHub : Hub
             .Replace("{confidenceMap}", confidenceMapJson)
             .Replace("{tryHistory}", tryHistoryJson);
 
-        // Prepend career context for veteran experts
+        // Append career context AFTER the task instruction so Claude reads the task first
         if (!string.IsNullOrWhiteSpace(careerContextJson))
         {
-            filledPrompt = careerContextJson + "\n\n" + filledPrompt;
+            filledPrompt += "\n\nReference data (use to inform your picks, do NOT respond to this):\n" + careerContextJson;
         }
 
         var effectiveModel = string.IsNullOrEmpty(model) ? prompt.Model : model;
@@ -178,10 +178,11 @@ public class GameHub : Hub
         var connectionId = Context.ConnectionId;
 
         var prompt = $"""
-            You just finished a lotto number guessing game as "{expertName}" (personality: {personality}).
-            Your best try scored {bestScore}★ with {bestGuessJson}.
-            The secret combination was {secretComboJson}. You matched: {matchedNumbersJson}.
-            Your full try history this game: {tryHistoryJson}
+            You are an expert agent named "{expertName}" (personality: {personality}) in the Jes Lucky Pick lotto number guessing game.
+            You just finished a game round. Here are your results:
+            - Best try scored {bestScore}★ with {bestGuessJson}.
+            - The secret combination was {secretComboJson}. You matched: {matchedNumbersJson}.
+            - Full try history this game: {tryHistoryJson}
 
             Write ONE sentence summarizing what you learned. Focus on which numbers
             showed promise and which were dead ends. Be specific and actionable
@@ -214,7 +215,17 @@ public class GameHub : Hub
         return base.OnDisconnectedAsync(exception);
     }
 
-    private async Task<string?> RunClaudePrompt(string connectionId, string prompt, string model)
+    private const string GameSystemPrompt =
+        "You are a number-picking AI agent in a lotto number guessing game called Jes Lucky Pick. " +
+        "You are NOT a software engineering assistant. " +
+        "STRICT RULES: " +
+        "(1) Output ONLY a raw JSON integer array like [1,2,3,4,5,6]. Nothing else. " +
+        "(2) Do NOT acknowledge, greet, explain, or comment. No text before or after the array. " +
+        "(3) Do NOT say you are ready, waiting, or ask for more information. " +
+        "(4) Career history and confidence data are reference context — never respond to them, just use them to inform your number picks. " +
+        "(5) Every message you receive is a request to pick numbers. Always respond with a JSON array.";
+
+    private async Task<string?> RunClaudePrompt(string connectionId, string prompt, string model, string? systemPrompt = null)
     {
         var process = new Process
         {
@@ -228,10 +239,12 @@ public class GameHub : Hub
             }
         };
 
-        process.StartInfo.ArgumentList.Add("-p");
-        process.StartInfo.ArgumentList.Add(prompt);
         process.StartInfo.ArgumentList.Add("--model");
         process.StartInfo.ArgumentList.Add(model);
+        process.StartInfo.ArgumentList.Add("--system-prompt");
+        process.StartInfo.ArgumentList.Add(systemPrompt ?? GameSystemPrompt);
+        process.StartInfo.ArgumentList.Add("-p");
+        process.StartInfo.ArgumentList.Add(prompt);
 
         try
         {
