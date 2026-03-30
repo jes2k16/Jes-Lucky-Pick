@@ -1,5 +1,6 @@
 import apiClient from "@/lib/api-client";
 import type { ExpertCareer, ExpertLottoStats } from "../types/expert-registry";
+import type { GameHistoryEntry, GameMode, GameResult } from "../types/game";
 
 // ── Training Sessions ──
 
@@ -14,8 +15,42 @@ export interface TrainingSessionRequest {
   survivingExperts: number;
   settingsJson: string;
   winnerJson: string | null;
+  winnerProfileJson: string | null;
   leaderboardJson: string | null;
   playedAt: string;
+}
+
+interface TrainingSessionApiDto {
+  id: string;
+  gameMode: string;
+  lottoGameCode: string;
+  result: string;
+  durationSeconds: number;
+  totalRounds: number;
+  totalExperts: number;
+  survivingExperts: number;
+  settingsJson: string;
+  winnerJson: string | null;
+  winnerProfileJson: string | null;
+  leaderboardJson: string | null;
+  playedAt: string;
+}
+
+function mapApiSessionToLocal(dto: TrainingSessionApiDto): GameHistoryEntry {
+  return {
+    id: dto.id,
+    playedAt: dto.playedAt,
+    gameMode: dto.gameMode as GameMode,
+    result: dto.result as GameResult,
+    settings: JSON.parse(dto.settingsJson),
+    winner: dto.winnerJson ? JSON.parse(dto.winnerJson) : null,
+    winnerProfile: dto.winnerProfileJson ? JSON.parse(dto.winnerProfileJson) : null,
+    durationSeconds: dto.durationSeconds,
+    totalRounds: dto.totalRounds,
+    totalExperts: dto.totalExperts,
+    survivingExperts: dto.survivingExperts,
+    leaderboard: dto.leaderboardJson ? JSON.parse(dto.leaderboardJson) : [],
+  };
 }
 
 export async function saveTrainingSession(request: TrainingSessionRequest) {
@@ -23,11 +58,13 @@ export async function saveTrainingSession(request: TrainingSessionRequest) {
   return data;
 }
 
-export async function getTrainingSessions(page = 1, pageSize = 20) {
-  const { data } = await apiClient.get("/training/sessions", {
-    params: { page, pageSize },
-  });
-  return data;
+export async function getTrainingSessions(): Promise<GameHistoryEntry[]> {
+  const { data } = await apiClient.get<{ items: TrainingSessionApiDto[] }>("/training/sessions");
+  return data.items.map(mapApiSessionToLocal);
+}
+
+export async function deleteTrainingSession(id: string): Promise<void> {
+  await apiClient.delete(`/training/sessions/${id}`);
 }
 
 // ── Expert Careers ──

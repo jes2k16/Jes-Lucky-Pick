@@ -1,31 +1,23 @@
-import { useState, useCallback } from "react";
+import { useState, useCallback, useEffect } from "react";
 import type {
   GameState,
   GameHistoryEntry,
   LeaderboardEntry,
   WinnerProfile,
 } from "../types/game";
-import { saveTrainingSession } from "../api/training-api";
-
-const STORAGE_KEY = "jes-number-training-history";
-const MAX_ENTRIES = 5000;
-
-function loadHistory(): GameHistoryEntry[] {
-  try {
-    const raw = localStorage.getItem(STORAGE_KEY);
-    if (!raw) return [];
-    return JSON.parse(raw) as GameHistoryEntry[];
-  } catch {
-    return [];
-  }
-}
-
-function saveHistory(entries: GameHistoryEntry[]) {
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(entries.slice(0, MAX_ENTRIES)));
-}
+import { saveTrainingSession, getTrainingSessions, deleteTrainingSession } from "../api/training-api";
 
 export function useGameHistory() {
-  const [history, setHistory] = useState<GameHistoryEntry[]>(loadHistory);
+  const [history, setHistory] = useState<GameHistoryEntry[]>([]);
+
+  // Load from DB on mount
+  useEffect(() => {
+    getTrainingSessions()
+      .then((entries) => setHistory(entries))
+      .catch(() => {
+        // Server unavailable — history stays empty for this session
+      });
+  }, []);
 
   const addEntry = useCallback((gameState: GameState) => {
     if (!gameState.result) return;
@@ -59,7 +51,6 @@ export function useGameHistory() {
     const totalSeconds = gameState.settings.timeLimitMinutes * 60;
     const durationSeconds = totalSeconds - gameState.timeRemaining;
 
-    // Build winner profile if there's a winner
     let winnerProfile: WinnerProfile | null = null;
     if (gameState.winner) {
       const winnerExpert = allExperts.find(
@@ -93,13 +84,10 @@ export function useGameHistory() {
       leaderboard,
     };
 
-    setHistory((prev) => {
-      const updated = [entry, ...prev].slice(0, MAX_ENTRIES);
-      saveHistory(updated);
-      return updated;
-    });
+    // Optimistic update
+    setHistory((prev) => [entry, ...prev]);
 
-    // Fire-and-forget sync to database
+    // Persist to DB — fire-and-forget
     saveTrainingSession({
       id: entry.id,
       gameMode: entry.gameMode,
@@ -111,25 +99,18 @@ export function useGameHistory() {
       survivingExperts: entry.survivingExperts,
       settingsJson: JSON.stringify(entry.settings),
       winnerJson: entry.winner ? JSON.stringify(entry.winner) : null,
+      winnerProfileJson: winnerProfile ? JSON.stringify(winnerProfile) : null,
       leaderboardJson: JSON.stringify(entry.leaderboard),
       playedAt: entry.playedAt,
-    }).catch(() => {
-      // Will retry on next sync
-    });
+    }).catch(() => {});
   }, []);
 
   const deleteEntry = useCallback((id: string) => {
-    setHistory((prev) => {
-      const updated = prev.filter((e) => e.id !== id);
-      saveHistory(updated);
-      return updated;
-    });
+    // Optimistic update
+    setHistory((prev) => prev.filter((e) => e.id !== id));
+    // Persist to DB
+    deleteTrainingSession(id).catch(() => {});
   }, []);
 
-  const clearHistory = useCallback(() => {
-    setHistory([]);
-    localStorage.removeItem(STORAGE_KEY);
-  }, []);
-
-  return { history, addEntry, deleteEntry, clearHistory };
+  return { history, addEntry, deleteEntry };
 }
