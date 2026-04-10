@@ -1,4 +1,4 @@
-import { Trophy, Skull, Clock, Download, RotateCcw } from "lucide-react";
+import { Trophy, Skull, Clock, Download, RotateCcw, CalendarDays, Unplug } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -13,6 +13,7 @@ import {
 import { NumberBall } from "@/components/shared/NumberBall";
 import { StarDisplay } from "./StarDisplay";
 import { exportWinnerProfile, downloadProfile } from "../../utils/game-export";
+import { formatDate } from "@/lib/format-date";
 import type { GameState, Expert } from "../../types/game";
 
 interface GameResultsScreenProps {
@@ -50,6 +51,15 @@ export function GameResultsScreen({
     if (profile) downloadProfile(profile);
   };
 
+  // Find the source draw date for a given combination
+  function findDrawDate(combination: number[]): string | null {
+    const key = [...combination].sort((a, b) => a - b).join(",");
+    const match = settings.historicalDrawItems?.find(
+      (d) => [...d.numbers].sort((a, b) => a - b).join(",") === key
+    );
+    return match?.drawDate ?? null;
+  }
+
   return (
     <div className="max-w-5xl mx-auto space-y-6 overflow-y-auto">
       {/* Result banner */}
@@ -76,6 +86,15 @@ export function GameResultsScreen({
             </p>
           </>
         )}
+        {result === "interrupted" && (
+          <>
+            <Unplug className="h-12 w-12 text-orange-500 mx-auto" />
+            <h2 className="text-2xl font-bold text-orange-500">Game Interrupted</h2>
+            <p className="text-muted-foreground text-sm">
+              The browser was refreshed while the game was running. Partial results are shown below.
+            </p>
+          </>
+        )}
       </div>
 
       {/* Winner card */}
@@ -89,9 +108,17 @@ export function GameResultsScreen({
           </CardHeader>
           <CardContent className="space-y-4">
             <div>
-              <p className="text-xs text-muted-foreground mb-1">
-                Manager {winner.managerId.toUpperCase()} — Secret Combination
-              </p>
+              <div className="flex items-center gap-2 mb-1">
+                <p className="text-xs text-muted-foreground">
+                  Manager {winner.managerId.toUpperCase()} — Secret Combination
+                </p>
+                {findDrawDate(winner.managerSecretCombination) && (
+                  <span className="flex items-center gap-1 text-xs text-muted-foreground">
+                    <CalendarDays className="h-3 w-3" />
+                    {formatDate(findDrawDate(winner.managerSecretCombination)!)}
+                  </span>
+                )}
+              </div>
               <div className="flex gap-1.5">
                 {winner.managerSecretCombination.map((n) => (
                   <NumberBall key={n} number={n} size="md" />

@@ -16,6 +16,7 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
     public DbSet<TrainingSession> TrainingSessions => Set<TrainingSession>();
     public DbSet<ExpertCareer> ExpertCareers => Set<ExpertCareer>();
     public DbSet<ExpertLottoStats> ExpertLottoStats => Set<ExpertLottoStats>();
+    public DbSet<TrainingSchedule> TrainingSchedules => Set<TrainingSchedule>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {

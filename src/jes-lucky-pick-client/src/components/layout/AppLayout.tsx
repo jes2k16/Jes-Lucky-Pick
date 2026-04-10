@@ -15,6 +15,7 @@ import {
   BrainCircuit,
   MessageSquare,
   Trophy,
+  Clock,
 } from "lucide-react";
 import { useAuthStore } from "@/stores/authStore";
 import { useUiStore } from "@/stores/uiStore";
@@ -167,6 +168,18 @@ export function AppLayout() {
                         <NavLink to="/model-training">
                           <BrainCircuit />
                           <span>Model Training</span>
+                        </NavLink>
+                      </SidebarMenuButton>
+                    </SidebarMenuItem>
+                    <SidebarMenuItem>
+                      <SidebarMenuButton
+                        asChild
+                        isActive={location.pathname === "/training-schedule"}
+                        tooltip="Training Schedule"
+                      >
+                        <NavLink to="/training-schedule">
+                          <Clock />
+                          <span>Training Schedule</span>
                         </NavLink>
                       </SidebarMenuButton>
                     </SidebarMenuItem>

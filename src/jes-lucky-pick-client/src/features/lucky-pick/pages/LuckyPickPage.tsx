@@ -48,7 +48,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { Sparkles, History, Trophy, Clock, ChevronsUpDown, Check } from "lucide-react";
+import { Sparkles, History, Trophy, Clock, ChevronsUpDown, Check, ArrowUp, ArrowDown } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { formatDate, formatDateTime } from "@/lib/format-date";
 import { useExpertRegistry } from "@/features/ai-training/hooks/useExpertRegistry";
@@ -213,7 +213,53 @@ export function LuckyPickPage() {
   const [veteranPopoverOpen, setVeteranPopoverOpen] = useState(false);
   const [results, setResults] = useState<PredictionResponse[]>([]);
   const [historyPage, setHistoryPage] = useState(1);
-  const historyPageSize = 10;
+  const [historyPageSize, setHistoryPageSize] = useState(100);
+  const [historyFilterStrategy, setHistoryFilterStrategy] = useState("all");
+  const [historySortKey, setHistorySortKey] = useState<
+    "date" | "strategy" | "confidence" | "match" | null
+  >(null);
+  const [historySortDir, setHistorySortDir] = useState<"asc" | "desc">("asc");
+
+  function handleHistorySort(key: "date" | "strategy" | "confidence" | "match") {
+    if (historySortKey === key) {
+      setHistorySortDir((d) => (d === "asc" ? "desc" : "asc"));
+    } else {
+      setHistorySortKey(key);
+      setHistorySortDir("asc");
+    }
+  }
+
+  function HistorySortIcon({ col }: { col: "date" | "strategy" | "confidence" | "match" }) {
+    if (historySortKey !== col) return null;
+    return historySortDir === "asc" ? (
+      <ArrowUp className="ml-1.5 h-3.5 w-3.5 text-foreground" />
+    ) : (
+      <ArrowDown className="ml-1.5 h-3.5 w-3.5 text-foreground" />
+    );
+  }
+
+  function HistorySortableHead({
+    col,
+    label,
+    className,
+  }: {
+    col: "date" | "strategy" | "confidence" | "match";
+    label: string;
+    className?: string;
+  }) {
+    return (
+      <TableHead className={className} onClick={() => handleHistorySort(col)}>
+        <button
+          type="button"
+          className="flex items-center gap-0 cursor-pointer select-none whitespace-nowrap hover:text-foreground transition-colors w-full"
+        >
+          {label}
+          <HistorySortIcon col={col} />
+        </button>
+      </TableHead>
+    );
+  }
+
   const queryClient = useQueryClient();
 
   const { registry } = useExpertRegistry();
@@ -369,6 +415,39 @@ export function LuckyPickPage() {
     ? Math.ceil(history.totalCount / historyPageSize)
     : 0;
 
+  const uniqueStrategies = [
+    "all",
+    ...Array.from(new Set((history?.items ?? []).map((i) => i.strategy))).sort(),
+  ];
+  const historyFilteredItems = (history?.items ?? []).filter(
+    (item) => historyFilterStrategy === "all" || item.strategy === historyFilterStrategy
+  );
+  const historySortedItems = historySortKey
+    ? [...historyFilteredItems].sort((a, b) => {
+        switch (historySortKey) {
+          case "date":
+            return historySortDir === "asc"
+              ? a.createdAt.localeCompare(b.createdAt)
+              : b.createdAt.localeCompare(a.createdAt);
+          case "strategy":
+            return historySortDir === "asc"
+              ? a.strategy.localeCompare(b.strategy)
+              : b.strategy.localeCompare(a.strategy);
+          case "confidence":
+            return historySortDir === "asc"
+              ? a.confidenceScore - b.confidenceScore
+              : b.confidenceScore - a.confidenceScore;
+          case "match": {
+            const aM = a.matchInfo?.matchedCount ?? -1;
+            const bM = b.matchInfo?.matchedCount ?? -1;
+            return historySortDir === "asc" ? aM - bM : bM - aM;
+          }
+          default:
+            return 0;
+        }
+      })
+    : historyFilteredItems;
+
   function handleGenerate() {
     activeMutation.mutate();
   }
@@ -394,13 +473,13 @@ export function LuckyPickPage() {
               variant="outline"
               role="combobox"
               aria-expanded={veteranPopoverOpen}
-              className="w-72 justify-between font-normal"
+              className="w-[420px] justify-between font-normal"
             >
               <span className="truncate">{displayLabel}</span>
               <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
             </Button>
           </PopoverTrigger>
-          <PopoverContent className="w-72 p-0">
+          <PopoverContent className="w-[420px] p-0">
             <Command>
               <CommandInput placeholder="Search veteran..." />
               <CommandList>
@@ -797,19 +876,55 @@ export function LuckyPickPage() {
             </div>
           ) : history && history.items.length > 0 ? (
             <>
+              {/* Strategy filter */}
+              {uniqueStrategies.length > 2 && (
+                <div className="flex flex-wrap items-center gap-2 mb-3">
+                  {uniqueStrategies.map((s) => (
+                    <Button
+                      key={s}
+                      size="sm"
+                      variant={historyFilterStrategy === s ? "default" : "outline"}
+                      onClick={() => setHistoryFilterStrategy(s)}
+                    >
+                      {s === "all" ? "All" : s}
+                    </Button>
+                  ))}
+                </div>
+              )}
+
+              <div className="flex justify-end mb-2">
+                <Select
+                  value={String(historyPageSize)}
+                  onValueChange={(v) => {
+                    setHistoryPageSize(Number(v));
+                    setHistoryPage(1);
+                  }}
+                >
+                  <SelectTrigger className="h-7 w-24 text-xs">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {[100, 200, 500, 1000].map((s) => (
+                      <SelectItem key={s} value={String(s)} className="text-xs">
+                        {s} / page
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
               <Table>
                 <TableHeader>
                   <TableRow>
-                    <TableHead>Date & Time</TableHead>
+                    <HistorySortableHead col="date" label="Date & Time" />
                     <TableHead>Your Numbers</TableHead>
-                    <TableHead>Strategy</TableHead>
-                    <TableHead>Confidence</TableHead>
+                    <HistorySortableHead col="strategy" label="Strategy" />
+                    <HistorySortableHead col="confidence" label="Confidence" />
                     <TableHead>Draw Result</TableHead>
-                    <TableHead>Match</TableHead>
+                    <HistorySortableHead col="match" label="Match" />
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {history.items.map((item) => {
+                  {historySortedItems.map((item) => {
                     const personality = extractPersonality(item.reasoning);
                     return (
                       <TableRow key={item.id}>
@@ -891,7 +1006,7 @@ export function LuckyPickPage() {
               </Table>
 
               {/* Pagination */}
-              <div className="mt-4 flex items-center justify-between">
+              <div className="mt-4 flex items-center justify-end gap-2">
                 <p className="text-xs text-muted-foreground">
                   Page {historyPage} of {totalHistoryPages}
                 </p>

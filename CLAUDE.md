@@ -34,3 +34,7 @@ NuGet restore uses a local `nuget.config` that clears inherited feeds and uses o
 ## Rules
 
 All project rules (banned/required technologies, styling conventions, architecture, game constraints) are in `.claude/rules/`. See those files for detailed instructions.
+
+## Confidence Rule
+
+Do not make any changes until you have 95% confidence in what you need to build. Ask me follow-up questions until you reach that confidence.

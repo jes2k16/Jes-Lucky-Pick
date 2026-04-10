@@ -8,6 +8,7 @@ import { NumberTrainingGame } from "@/features/ai-training/components/game/Numbe
 import { GameSetupModal } from "@/features/ai-training/components/game/GameSetupModal";
 import { ModeComparisonModal } from "@/features/ai-training/components/game/ModeComparisonModal";
 import { useTrainingSessionStore } from "@/stores/trainingSessionStore";
+import { fetchDraws } from "@/features/history/api/drawsApi";
 import type { GameSettings, GameState, WinnerProfile } from "@/features/ai-training/types/game";
 
 export function AiTrainingPage() {
@@ -25,16 +26,31 @@ export function AiTrainingPage() {
     }
   };
 
-  const handleModalStart = (settings: GameSettings, profile?: WinnerProfile) => {
-    startSession(settings, profile);
+  const handleModalStart = async (settings: GameSettings, profile?: WinnerProfile) => {
+    // Fetch historical draws to use as manager secrets
+    let historicalDraws: number[][] | undefined;
+    let historicalDrawItems: { numbers: number[]; drawDate: string }[] | undefined;
+    try {
+      const result = await fetchDraws({ pageSize: 500 });
+      if (result.items.length > 0) {
+        historicalDrawItems = result.items.map((d) => ({ numbers: d.numbers, drawDate: d.drawDate }));
+        historicalDraws = historicalDrawItems.map((d) => d.numbers);
+      }
+    } catch {
+      // Fall back to random generation if fetch fails
+    }
+
+    startSession({ ...settings, historicalDraws, historicalDrawItems }, profile);
     setShowSetupModal(false);
   };
 
   const handleBack = () => {
+    localStorage.removeItem("jes-training-game-state");
     endSession();
   };
 
   const handlePlayAgain = () => {
+    localStorage.removeItem("jes-training-game-state");
     endSession();
     setShowSetupModal(true);
   };

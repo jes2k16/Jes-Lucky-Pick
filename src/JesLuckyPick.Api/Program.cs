@@ -1,10 +1,13 @@
 using System.Text;
+using Hangfire;
 using JesLuckyPick.Api.Endpoints;
 using JesLuckyPick.Api.Hubs;
 using JesLuckyPick.Api.Middleware;
+using JesLuckyPick.Domain.Interfaces;
 using JesLuckyPick.Infrastructure;
 using JesLuckyPick.Infrastructure.Persistence;
 using JesLuckyPick.Infrastructure.Persistence.Seeding;
+using JesLuckyPick.Infrastructure.Training;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
@@ -48,7 +51,10 @@ builder.Services.AddSignalR(options =>
     // Default is 1 (sequential queue), which prevents fully-parallel / parallel-per-manager.
     options.MaximumParallelInvocationsPerClient = 50;
 });
-builder.Services.AddAuthorization();
+builder.Services.AddAuthorization(options =>
+{
+    options.AddPolicy("AdminOnly", policy => policy.RequireRole("Admin"));
+});
 
 var app = builder.Build();
 
@@ -66,6 +72,12 @@ if (app.Environment.IsDevelopment())
 
 app.UseMiddleware<ExceptionHandlingMiddleware>();
 
+app.UseHangfireDashboard("/hangfire", new DashboardOptions
+{
+    Authorization = [new HangfireAdminAuthFilter()],
+    DarkModeEnabled = true,
+});
+
 app.UseHttpsRedirection();
 app.UseAuthentication();
 app.UseAuthorization();
@@ -80,5 +92,16 @@ app.MapHub<TerminalHub>("/hubs/terminal");
 app.MapHub<GameHub>("/hubs/game");
 app.MapAgentPromptEndpoints();
 app.MapTrainingEndpoints();
+app.MapScheduleEndpoints();
+
+// Reload saved schedule into Hangfire on startup (survives app restarts)
+using (var startupScope = app.Services.CreateScope())
+{
+    var scheduleRepo = startupScope.ServiceProvider.GetRequiredService<ITrainingScheduleRepository>();
+    var scheduler = startupScope.ServiceProvider.GetRequiredService<TrainingSchedulerService>();
+    var existingSchedule = await scheduleRepo.GetAsync();
+    if (existingSchedule is not null)
+        scheduler.Apply(existingSchedule);
+}
 
 app.Run();

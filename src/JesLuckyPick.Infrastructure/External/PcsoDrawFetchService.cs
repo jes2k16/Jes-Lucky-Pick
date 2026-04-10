@@ -33,7 +33,7 @@ public partial class PcsoDrawFetchService(
         ["6_58"] = "6/58 Ultralotto",
     };
 
-    public async Task<IReadOnlyList<Draw>> FetchLatestDrawsAsync(
+    public async Task<DrawSyncResult> FetchLatestDrawsAsync(
         string gameCode, CancellationToken ct = default)
     {
         var game = await gameRepo.GetByCodeAsync(gameCode, ct);
@@ -53,16 +53,50 @@ public partial class PcsoDrawFetchService(
             var posts = await FetchPostsAsync(categoryId, ct);
             var draws = ParseDrawsFromPosts(posts, gameCode, game.Id);
 
+            // 1. Find new draws to add
             var newDraws = draws
                 .Where(d => d.DrawDate > latestDate)
                 .OrderBy(d => d.DrawDate)
                 .ToList();
 
-            logger.LogInformation(
-                "Fetched {TotalCount} draws for {GameCode}, {NewCount} are new (after {LatestDate})",
-                draws.Count, gameCode, newDraws.Count, latestDate);
+            // 2. Sync last 4 existing draws — check if numbers/jackpot/winners differ
+            var updatedDraws = new List<Draw>();
+            var existingDraws = draws
+                .Where(d => d.DrawDate <= latestDate)
+                .ToList();
 
-            return newDraws;
+            foreach (var fetched in existingDraws)
+            {
+                var existing = await drawRepo.GetByGameAndDateAsync(game.Id, fetched.DrawDate, ct);
+                if (existing is null) continue;
+
+                var numbersChanged =
+                    existing.Number1 != fetched.Number1 || existing.Number2 != fetched.Number2 ||
+                    existing.Number3 != fetched.Number3 || existing.Number4 != fetched.Number4 ||
+                    existing.Number5 != fetched.Number5 || existing.Number6 != fetched.Number6;
+                var jackpotChanged = existing.JackpotAmount != fetched.JackpotAmount;
+                var winnersChanged = existing.WinnersCount != fetched.WinnersCount;
+
+                if (numbersChanged || jackpotChanged || winnersChanged)
+                {
+                    existing.Number1 = fetched.Number1;
+                    existing.Number2 = fetched.Number2;
+                    existing.Number3 = fetched.Number3;
+                    existing.Number4 = fetched.Number4;
+                    existing.Number5 = fetched.Number5;
+                    existing.Number6 = fetched.Number6;
+                    existing.JackpotAmount = fetched.JackpotAmount;
+                    existing.WinnersCount = fetched.WinnersCount;
+                    await drawRepo.UpdateAsync(existing, ct);
+                    updatedDraws.Add(existing);
+                }
+            }
+
+            logger.LogInformation(
+                "Fetched {TotalCount} draws for {GameCode}, {NewCount} new, {UpdatedCount} updated (after {LatestDate})",
+                draws.Count, gameCode, newDraws.Count, updatedDraws.Count, latestDate);
+
+            return new DrawSyncResult(newDraws, updatedDraws);
         }
         catch (Exception ex)
         {

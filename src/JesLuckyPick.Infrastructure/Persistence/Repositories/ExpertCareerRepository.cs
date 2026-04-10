@@ -97,6 +97,19 @@ public class ExpertCareerRepository(AppDbContext context) : IExpertCareerReposit
         await context.SaveChangesAsync(ct);
     }
 
+    public async Task DeleteAsync(Guid userId, Guid id, CancellationToken ct = default)
+    {
+        var career = await context.ExpertCareers
+            .Include(c => c.LottoStats)
+            .FirstOrDefaultAsync(c => c.Id == id && c.UserId == userId, ct);
+
+        if (career is null) return;
+
+        context.ExpertLottoStats.RemoveRange(career.LottoStats);
+        context.ExpertCareers.Remove(career);
+        await context.SaveChangesAsync(ct);
+    }
+
     public async Task BulkUpsertAsync(IEnumerable<ExpertCareer> careers, CancellationToken ct = default)
     {
         // Deduplicate by Name+Personality — keep the record with the most games played

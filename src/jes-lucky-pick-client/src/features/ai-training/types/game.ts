@@ -1,10 +1,10 @@
 // ── Enums & Unions ──
 
 export type ExpertPersonality = "Scanner" | "Sticky" | "Gambler" | "Analyst";
-export type GameMode = "simulation" | "ai-agent";
+export type GameMode = "simulation" | "ai-agent" | "scheduled";
 export type ConcurrencyMode = "sequential" | "fully-parallel";
 export type GamePhase = "setup" | "running" | "paused" | "ended";
-export type GameResult = "winner_found" | "all_eliminated" | "time_up";
+export type GameResult = "winner_found" | "all_eliminated" | "time_up" | "interrupted";
 export type ExpertStatus = "active" | "eliminated" | "winner";
 export type ManagerStatus = "active" | "failed" | "winner";
 export type LogEntryType = "info" | "score" | "elimination" | "winner" | "round";
@@ -36,6 +36,10 @@ export interface GameSettings {
   concurrencyMode: ConcurrencyMode;
   model: string;
   useVeterans: boolean;
+  /** Historical draw combinations for manager secrets (fetched at game start) */
+  historicalDraws?: number[][];
+  /** Historical draw items with dates — used to show the source draw date in results */
+  historicalDrawItems?: { numbers: number[]; drawDate: string }[];
 }
 
 export const DEFAULT_SETTINGS: GameSettings = {
@@ -172,4 +176,5 @@ export interface GameEngine {
   pauseGame: () => void;
   resumeGame: () => void;
   resetGame: () => void;
+  restoreGame: (state: GameState) => void;
 }

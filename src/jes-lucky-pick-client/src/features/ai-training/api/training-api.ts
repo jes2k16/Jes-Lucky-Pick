@@ -169,6 +169,10 @@ export async function syncExpertCareers(careers: ExpertCareer[]): Promise<{ sync
   return data;
 }
 
+export async function deleteExpertCareer(id: string): Promise<void> {
+  await apiClient.delete(`/training/careers/${id}`);
+}
+
 export async function patchExpertCareer(
   id: string,
   updates: { name?: string; isFavorite?: boolean }

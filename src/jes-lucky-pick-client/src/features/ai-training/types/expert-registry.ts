@@ -14,7 +14,7 @@ export interface GameMemory {
   topConfidence: number[];
   bottomConfidence: number[];
   lesson: string;
-  mode?: "simulation" | "ai-agent";
+  mode?: "simulation" | "ai-agent" | "scheduled";
 }
 
 // ── Career Summary (for games older than stored memories) ──

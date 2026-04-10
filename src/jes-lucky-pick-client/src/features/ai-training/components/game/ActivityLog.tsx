@@ -12,9 +12,10 @@ const typeColors: Record<string, string> = {
 
 interface ActivityLogProps {
   entries: ActivityLogEntry[];
+  className?: string;
 }
 
-export function ActivityLog({ entries }: ActivityLogProps) {
+export function ActivityLog({ entries, className }: ActivityLogProps) {
   const scrollRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -26,7 +27,10 @@ export function ActivityLog({ entries }: ActivityLogProps) {
   return (
     <div
       ref={scrollRef}
-      className="h-48 overflow-y-auto rounded-md bg-muted/30 border p-3 font-mono text-xs space-y-0.5"
+      className={cn(
+        "overflow-y-auto rounded-md bg-muted/30 border p-3 font-mono text-xs space-y-0.5",
+        className ?? "h-48"
+      )}
     >
       {entries.length === 0 && (
         <span className="text-muted-foreground">Waiting for game to start...</span>

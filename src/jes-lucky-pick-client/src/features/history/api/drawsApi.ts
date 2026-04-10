@@ -15,8 +15,8 @@ export async function fetchDraws(params: {
 
 export async function fetchLatestResults(
   gameCode: string = "6_42"
-): Promise<{ added: number; message: string }> {
-  const { data } = await apiClient.post<{ added: number; message: string }>(
+): Promise<{ added: number; updated: number; message: string }> {
+  const { data } = await apiClient.post<{ added: number; updated: number; message: string }>(
     "/draws/fetch-latest",
     null,
     { params: { gameCode } }

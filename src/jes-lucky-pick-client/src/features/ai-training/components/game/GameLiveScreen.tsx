@@ -1,6 +1,7 @@
 import { Pause, Play, RotateCcw, Cpu, BrainCircuit } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { cn } from "@/lib/utils";
 import { ManagerCard } from "./ManagerCard";
 import { ActivityLog } from "./ActivityLog";
 import { LOTTO_GAMES } from "../../types/game";
@@ -127,7 +128,10 @@ export function GameLiveScreen({
       </div>
 
       {/* Manager grid */}
-      <div className="flex-1 min-h-0 overflow-y-auto">
+      <div className={cn(
+        "min-h-0 overflow-y-auto",
+        managers.length <= 2 ? "flex-1" : "flex-[2]"
+      )}>
         <div
           className={`grid gap-4 ${
             managers.length === 1
@@ -149,7 +153,13 @@ export function GameLiveScreen({
       </div>
 
       {/* Activity log */}
-      <ActivityLog entries={log} />
+      <ActivityLog
+        entries={log}
+        className={cn(
+          "min-h-32",
+          managers.length <= 2 ? "flex-1" : "flex-1 min-h-40"
+        )}
+      />
     </div>
   );
 }

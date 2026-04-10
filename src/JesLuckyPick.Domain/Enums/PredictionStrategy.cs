@@ -7,5 +7,6 @@ public enum PredictionStrategy
     Gap,
     AiWeighted,
     Combined,
-    ClaudeAi
+    ClaudeAi,
+    SimulationExpert
 }

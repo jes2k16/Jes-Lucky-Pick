@@ -6,8 +6,10 @@ import { useAiGameEngine } from "../../hooks/useAiGameEngine";
 import { GameParamsSummary } from "./GameParamsSummary";
 import { GameLiveScreen } from "./GameLiveScreen";
 import { GameResultsScreen } from "./GameResultsScreen";
-import type { GameMode, GameSettings, GameState, WinnerProfile } from "../../types/game";
+import type { GameMode, GameSettings, GameState, GameEngine, WinnerProfile } from "../../types/game";
 import type { ExpertRegistry } from "../../types/expert-registry";
+
+const GAME_STATE_KEY = "jes-training-game-state";
 
 interface NumberTrainingGameProps {
   initialSettings: GameSettings;
@@ -38,17 +40,59 @@ export function NumberTrainingGame({
 
   const isRunning = gameState.phase === "running" || gameState.phase === "paused";
 
-  // Auto-start on mount with the settings from the modal
+  // Auto-start on mount — or restore saved game state after a browser refresh
   useEffect(() => {
     if (!hasStarted.current) {
       hasStarted.current = true;
       savedRef.current = false;
+
+      // Check for saved game state to restore
+      const savedJson = localStorage.getItem(GAME_STATE_KEY);
+      if (savedJson) {
+        try {
+          const restored = JSON.parse(savedJson) as GameState;
+          if (restored.phase !== "setup") {
+            // If the game was already ended before the refresh, mark it as saved
+            // so the onGameEnd callback doesn't fire again and duplicate the session.
+            if (restored.phase === "ended") {
+              savedRef.current = true;
+            }
+            const mode = restored.settings.gameMode;
+            setActiveMode(mode);
+            const target: GameEngine = mode === "simulation" ? simEngine : aiEngine;
+            target.restoreGame(restored);
+            return;
+          }
+        } catch {
+          // Corrupted state — fall through to normal start
+        }
+      }
+
       setActiveMode(initialSettings.gameMode);
       const target = initialSettings.gameMode === "simulation" ? simEngine : aiEngine;
       target.startGame(initialSettings, initialProfile, registry);
     }
+    return () => {
+      // React 18 StrictMode mounts effects twice (mount → cleanup → remount).
+      // Ref values are preserved across this cycle, so hasStarted stays true on
+      // the second mount and startGame is skipped — leaving the game in a
+      // "running" state with a dead worker. Resetting here lets the second mount
+      // call startGame fresh with a new worker. Clearing localStorage prevents
+      // the second mount from restoring the in-progress state from mount 1.
+      hasStarted.current = false;
+      localStorage.removeItem(GAME_STATE_KEY);
+    };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  // Persist game state to localStorage so it survives browser refresh
+  useEffect(() => {
+    if (gameState.phase === "setup") {
+      localStorage.removeItem(GAME_STATE_KEY);
+      return;
+    }
+    localStorage.setItem(GAME_STATE_KEY, JSON.stringify(gameState));
+  }, [gameState]);
 
   // Notify parent when game ends
   useEffect(() => {
@@ -63,12 +107,14 @@ export function NumberTrainingGame({
 
   const handleReset = () => {
     resetGame();
+    localStorage.removeItem(GAME_STATE_KEY);
     onBack();
   };
 
   const handleBack = () => {
     if (isRunning) return;
     resetGame();
+    localStorage.removeItem(GAME_STATE_KEY);
     onBack();
   };
 

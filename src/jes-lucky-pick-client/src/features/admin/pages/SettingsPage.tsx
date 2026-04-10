@@ -25,7 +25,9 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Bot, FlaskConical, Save, Loader2, Terminal } from "lucide-react";
+import { Input } from "@/components/ui/input";
+import { useAppSettingsStore } from "@/stores/appSettingsStore";
+import { Bot, FlaskConical, Save, Loader2, Terminal, Users } from "lucide-react";
 
 const settingsSchema = z.object({
   model: z.string().min(1, "Please select a model"),
@@ -35,6 +37,7 @@ type SettingsFormValues = z.infer<typeof settingsSchema>;
 
 export function SettingsPage() {
   const queryClient = useQueryClient();
+  const { maxAgentCount, setMaxAgentCount } = useAppSettingsStore();
   const [message, setMessage] = useState<{
     type: "success" | "error";
     text: string;
@@ -127,6 +130,34 @@ export function SettingsPage() {
           {message.text}
         </div>
       )}
+
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <Users className="h-5 w-5" />
+            Training Game
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          <div className="space-y-2">
+            <Label htmlFor="maxAgentCount">Max Agents per Game</Label>
+            <p className="text-xs text-muted-foreground">
+              Maximum number of experts allowed across all managers in a single training game.
+            </p>
+            <Input
+              id="maxAgentCount"
+              type="number"
+              min={1}
+              value={maxAgentCount}
+              onChange={(e) => {
+                const val = parseInt(e.target.value, 10);
+                if (!isNaN(val) && val >= 1) setMaxAgentCount(val);
+              }}
+              className="w-32"
+            />
+          </div>
+        </CardContent>
+      </Card>
 
       <Card>
         <CardHeader>

@@ -38,6 +38,7 @@ import {
   type WinnerProfile,
 } from "../../types/game";
 import { importProfile } from "../../utils/game-export";
+import { useAppSettingsStore } from "@/stores/appSettingsStore";
 
 const MODELS = [
   { value: "claude-haiku-4-5-20251001", label: "Haiku 4.5 (Fast)" },
@@ -53,14 +54,12 @@ const numField = (min: number, max?: number) => {
   return schema;
 };
 
-const settingsSchema = z.object({
-  managerCount: numField(1, 10),
-  expertsPerManager: numField(1, 8),
-  timeLimitMinutes: numField(1, 30),
-  simulationSpeedMs: numField(50, 5000),
-});
-
-type FormValues = z.infer<typeof settingsSchema>;
+type FormValues = {
+  managerCount: number;
+  expertsPerManager: number;
+  timeLimitMinutes: number;
+  simulationSpeedMs: number;
+};
 
 interface GameSetupModalProps {
   open: boolean;
@@ -70,6 +69,7 @@ interface GameSetupModalProps {
 }
 
 export function GameSetupModal({ open, onOpenChange, onStart, veteranCount = 0 }: GameSetupModalProps) {
+  const { maxAgentCount } = useAppSettingsStore();
   const [gameMode, setGameMode] = useState<GameMode>("simulation");
   const [lottoGame, setLottoGame] = useState<LottoGameType>(DEFAULT_SETTINGS.lottoGame);
   const [concurrencyMode, setConcurrencyMode] = useState<string>("fully-parallel");
@@ -83,7 +83,14 @@ export function GameSetupModal({ open, onOpenChange, onStart, veteranCount = 0 }
     handleSubmit,
     formState: { errors },
   } = useForm<FormValues>({
-    resolver: zodResolver(settingsSchema),
+    resolver: zodResolver(
+      z.object({
+        managerCount: numField(1, 10),
+        expertsPerManager: numField(1, maxAgentCount),
+        timeLimitMinutes: numField(1, 30),
+        simulationSpeedMs: numField(50, 5000),
+      })
+    ),
     defaultValues: {
       managerCount: DEFAULT_SETTINGS.managerCount,
       expertsPerManager: DEFAULT_SETTINGS.expertsPerManager,
@@ -262,7 +269,7 @@ export function GameSetupModal({ open, onOpenChange, onStart, veteranCount = 0 }
                   )}
                 </div>
                 <div className="space-y-1">
-                  <Label htmlFor="expertsPerManager" className="text-xs">Experts/Mgr</Label>
+                  <Label htmlFor="expertsPerManager" className="text-xs">Experts/Mgr (max {maxAgentCount})</Label>
                   <Input
                     id="expertsPerManager"
                     type="number"

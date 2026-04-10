@@ -216,14 +216,11 @@ public class GameHub : Hub
     }
 
     private const string GameSystemPrompt =
-        "You are a number-picking AI agent in a lotto number guessing game called Jes Lucky Pick. " +
-        "You are NOT a software engineering assistant. " +
-        "STRICT RULES: " +
-        "(1) Output ONLY a raw JSON integer array like [1,2,3,4,5,6]. Nothing else. " +
-        "(2) Do NOT acknowledge, greet, explain, or comment. No text before or after the array. " +
-        "(3) Do NOT say you are ready, waiting, or ask for more information. " +
-        "(4) Career history and confidence data are reference context — never respond to them, just use them to inform your number picks. " +
-        "(5) Every message you receive is a request to pick numbers. Always respond with a JSON array.";
+        "You are a number-picking agent in a lotto guessing game. " +
+        "You MUST respond with ONLY a JSON integer array like [1,2,3,4,5,6]. " +
+        "NEVER output any text, words, explanations, or greetings. " +
+        "NEVER say you are ready or waiting. " +
+        "The ONLY valid response is a JSON array of integers. Nothing else.";
 
     private async Task<string?> RunClaudePrompt(string connectionId, string prompt, string model, string? systemPrompt = null)
     {
@@ -243,6 +240,8 @@ public class GameHub : Hub
         process.StartInfo.ArgumentList.Add(model);
         process.StartInfo.ArgumentList.Add("--system-prompt");
         process.StartInfo.ArgumentList.Add(systemPrompt ?? GameSystemPrompt);
+        process.StartInfo.ArgumentList.Add("--max-turns");
+        process.StartInfo.ArgumentList.Add("1");
         process.StartInfo.ArgumentList.Add("-p");
         process.StartInfo.ArgumentList.Add(prompt);
 

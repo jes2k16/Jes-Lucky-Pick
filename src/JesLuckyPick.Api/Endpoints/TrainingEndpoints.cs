@@ -43,12 +43,13 @@ public static class TrainingEndpoints
 
         group.MapGet("/sessions", async (
             ITrainingSessionRepository sessionRepo,
-            ClaimsPrincipal user,
             int page = 1,
-            int pageSize = 5000) =>
+            int pageSize = 5000,
+            string? gameMode = null) =>
         {
-            var userId = Guid.Parse(user.FindFirstValue(ClaimTypes.NameIdentifier)!);
-            var (items, totalCount) = await sessionRepo.GetByUserPagedAsync(userId, page, pageSize);
+            // Show all sessions across all admin users so that Hangfire-created
+            // scheduled sessions and sessions triggered by any admin are visible.
+            var (items, totalCount) = await sessionRepo.GetAllPagedAsync(page, pageSize, gameMode);
 
             return Results.Ok(new
             {
@@ -70,6 +71,16 @@ public static class TrainingEndpoints
         {
             var userId = Guid.Parse(user.FindFirstValue(ClaimTypes.NameIdentifier)!);
             await sessionRepo.DeleteAsync(userId, id);
+            return Results.NoContent();
+        });
+
+        group.MapDelete("/careers/{id:guid}", async (
+            Guid id,
+            IExpertCareerRepository careerRepo,
+            ClaimsPrincipal user) =>
+        {
+            var userId = Guid.Parse(user.FindFirstValue(ClaimTypes.NameIdentifier)!);
+            await careerRepo.DeleteAsync(userId, id);
             return Results.NoContent();
         });
 

@@ -7,9 +7,11 @@ import { LuckyPickPage } from "@/features/lucky-pick/pages/LuckyPickPage";
 import { AnalysisPage } from "@/features/analysis/pages/AnalysisPage";
 import { AdminPage } from "@/features/admin/pages/AdminPage";
 import { SettingsPage } from "@/features/admin/pages/SettingsPage";
+import { AiTrainingPage } from "@/features/ai-training/pages/AiTrainingPage";
 import { AiChatbotPage } from "@/features/ai-training/pages/AiChatbotPage";
 import { VeteranDataPage } from "@/features/ai-training/pages/VeteranDataPage";
 import { ProfilePage } from "@/features/profile/pages/ProfilePage";
+import { TrainingSchedulePage } from "@/features/schedule/pages/TrainingSchedulePage";
 import { useAuthStore } from "@/stores/authStore";
 import { useEffect, type ReactNode } from "react";
 
@@ -52,10 +54,11 @@ export function AppRoutes() {
           <Route path="analysis" element={<AnalysisPage />} />
           <Route path="admin" element={<AdminPage />} />
           <Route path="admin/settings" element={<SettingsPage />} />
-          <Route path="model-training" element={null} />
+          <Route path="model-training" element={<AiTrainingPage />} />
           <Route path="veteran-data" element={<VeteranDataPage />} />
           <Route path="ai-chatbot" element={<AiChatbotPage />} />
           <Route path="profile" element={<ProfilePage />} />
+          <Route path="training-schedule" element={<TrainingSchedulePage />} />
         </Route>
       </Routes>
     </BrowserRouter>

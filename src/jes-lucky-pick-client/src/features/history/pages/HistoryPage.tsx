@@ -31,11 +31,22 @@ import {
 } from "@/components/ui/dialog";
 import { NumberBall } from "@/components/shared/NumberBall";
 import { Skeleton } from "@/components/ui/skeleton";
-import { X, RefreshCw, Plus } from "lucide-react";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import { X, RefreshCw, Plus, ArrowUp, ArrowDown } from "lucide-react";
 import { formatDate } from "@/lib/format-date";
 
 export function HistoryPage() {
   const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(100);
+  const [filterDay, setFilterDay] = useState("all");
+  const [sortKey, setSortKey] = useState<"date" | "jackpot" | "winners" | null>(null);
+  const [sortDir, setSortDir] = useState<"asc" | "desc">("asc");
   const [fromDate, setFromDate] = useState("");
   const [toDate, setToDate] = useState("");
   const [fetchMessage, setFetchMessage] = useState<{
@@ -47,11 +58,10 @@ export function HistoryPage() {
   const [manualNumbers, setManualNumbers] = useState(["", "", "", "", "", ""]);
   const [manualJackpot, setManualJackpot] = useState("");
   const [manualWinners, setManualWinners] = useState("");
-  const pageSize = 20;
   const queryClient = useQueryClient();
 
   const { data, isLoading } = useQuery({
-    queryKey: ["draws", page, fromDate, toDate],
+    queryKey: ["draws", page, pageSize, fromDate, toDate],
     queryFn: () =>
       fetchDraws({
         page,
@@ -102,6 +112,74 @@ export function HistoryPage() {
   });
 
   const totalPages = data ? Math.ceil(data.totalCount / pageSize) : 0;
+
+  function handleSort(key: "date" | "jackpot" | "winners") {
+    if (sortKey === key) {
+      setSortDir((d) => (d === "asc" ? "desc" : "asc"));
+    } else {
+      setSortKey(key);
+      setSortDir("asc");
+    }
+  }
+
+  function SortIcon({ col }: { col: "date" | "jackpot" | "winners" }) {
+    if (sortKey !== col) return null;
+    return sortDir === "asc" ? (
+      <ArrowUp className="ml-1.5 h-3.5 w-3.5 text-foreground" />
+    ) : (
+      <ArrowDown className="ml-1.5 h-3.5 w-3.5 text-foreground" />
+    );
+  }
+
+  function SortableHead({
+    col,
+    label,
+    className,
+  }: {
+    col: "date" | "jackpot" | "winners";
+    label: string;
+    className?: string;
+  }) {
+    return (
+      <TableHead className={className} onClick={() => handleSort(col)}>
+        <button
+          type="button"
+          className="flex items-center gap-0 cursor-pointer select-none whitespace-nowrap hover:text-foreground transition-colors w-full"
+        >
+          {label}
+          <SortIcon col={col} />
+        </button>
+      </TableHead>
+    );
+  }
+
+  const uniqueDays = ["all", ...Array.from(new Set((data?.items ?? []).map((d) => d.dayOfWeek))).sort()];
+
+  const filteredItems = (data?.items ?? []).filter(
+    (d) => filterDay === "all" || d.dayOfWeek === filterDay
+  );
+  const sortedItems = sortKey
+    ? [...filteredItems].sort((a, b) => {
+        switch (sortKey) {
+          case "date":
+            return sortDir === "asc"
+              ? a.drawDate.localeCompare(b.drawDate)
+              : b.drawDate.localeCompare(a.drawDate);
+          case "jackpot": {
+            const aJ = a.jackpotAmount ?? 0;
+            const bJ = b.jackpotAmount ?? 0;
+            return sortDir === "asc" ? aJ - bJ : bJ - aJ;
+          }
+          case "winners": {
+            const aW = a.winnersCount ?? 0;
+            const bW = b.winnersCount ?? 0;
+            return sortDir === "asc" ? aW - bW : bW - aW;
+          }
+          default:
+            return 0;
+        }
+      })
+    : filteredItems;
 
   const isManualValid =
     manualDate &&
@@ -159,6 +237,22 @@ export function HistoryPage() {
             <X className="mr-1 h-3 w-3" />
             Clear
           </Button>
+        )}
+
+        {uniqueDays.length > 1 && (
+          <div className="flex flex-wrap items-center gap-2">
+            <span className="text-muted-foreground text-sm">Day:</span>
+            {uniqueDays.map((day) => (
+              <Button
+                key={day}
+                size="sm"
+                variant={filterDay === day ? "default" : "outline"}
+                onClick={() => setFilterDay(day)}
+              >
+                {day === "all" ? "All" : day}
+              </Button>
+            ))}
+          </div>
         )}
 
         <div className="ml-auto flex gap-2">
@@ -285,18 +379,38 @@ export function HistoryPage() {
             </div>
           ) : (
             <>
+              <div className="flex justify-end mb-2">
+                <Select
+                  value={String(pageSize)}
+                  onValueChange={(v) => {
+                    setPageSize(Number(v));
+                    setPage(1);
+                  }}
+                >
+                  <SelectTrigger className="h-7 w-24 text-xs">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {[100, 200, 500, 1000].map((s) => (
+                      <SelectItem key={s} value={String(s)} className="text-xs">
+                        {s} / page
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
               <Table>
                 <TableHeader>
                   <TableRow>
-                    <TableHead>Date</TableHead>
+                    <SortableHead col="date" label="Date" />
                     <TableHead>Day</TableHead>
                     <TableHead>Numbers</TableHead>
-                    <TableHead className="text-right">Jackpot</TableHead>
-                    <TableHead className="text-right">Winners</TableHead>
+                    <SortableHead col="jackpot" label="Jackpot" className="text-right" />
+                    <SortableHead col="winners" label="Winners" className="text-right" />
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {data?.items.map((draw) => (
+                  {sortedItems.map((draw) => (
                     <TableRow key={draw.id}>
                       <TableCell className="text-sm font-medium">
                         {formatDate(draw.drawDate)}
@@ -317,7 +431,7 @@ export function HistoryPage() {
                           : "—"}
                       </TableCell>
                       <TableCell className="text-right text-sm text-muted-foreground">
-                        {draw.winnersCount ?? "—"}
+                        {draw.winnersCount ?? 0}
                       </TableCell>
                     </TableRow>
                   ))}
@@ -325,7 +439,7 @@ export function HistoryPage() {
               </Table>
 
               {/* Pagination */}
-              <div className="mt-4 flex items-center justify-between">
+              <div className="mt-4 flex items-center justify-end gap-2">
                 <p className="text-xs text-muted-foreground">
                   Page {page} of {totalPages}
                 </p>

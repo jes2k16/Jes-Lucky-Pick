@@ -11,4 +11,5 @@ public interface IExpertCareerRepository
     Task UpsertStatsAsync(ExpertLottoStats stats, CancellationToken ct = default);
     Task BulkUpsertAsync(IEnumerable<ExpertCareer> careers, CancellationToken ct = default);
     Task PatchAsync(Guid userId, Guid id, string? name, bool? isFavorite, CancellationToken ct = default);
+    Task DeleteAsync(Guid userId, Guid id, CancellationToken ct = default);
 }

@@ -1,4 +1,4 @@
-import { useState, useRef, useCallback } from "react";
+import { useState, useRef, useCallback, useEffect } from "react";
 import {
   HubConnectionBuilder,
   HubConnection,
@@ -15,8 +15,9 @@ import type {
   WinnerProfile,
   ActivityLogEntry,
   TryResult,
+  LottoGameType,
 } from "../types/game";
-import type { ExpertRegistry } from "../types/expert-registry";
+import type { ExpertRegistry, ExpertCareer } from "../types/expert-registry";
 import { buildSeededConfidenceMap, buildCareerContext } from "./useExpertRegistry";
 import {
   scoreGuess,
@@ -84,38 +85,124 @@ function initializeConfidenceMap(settings: GameSettings): Record<number, number>
   return map;
 }
 
+function pickSecretCombination(settings: GameSettings, usedSecrets: Set<string>): number[] {
+  const draws = settings.historicalDraws;
+  if (draws && draws.length > 0) {
+    const shuffled = [...draws].sort(() => Math.random() - 0.5);
+    for (const draw of shuffled) {
+      const key = [...draw].sort((a, b) => a - b).join(",");
+      if (!usedSecrets.has(key)) {
+        usedSecrets.add(key);
+        return draw;
+      }
+    }
+    return shuffled[Math.floor(Math.random() * shuffled.length)];
+  }
+  return generateSecretCombination(settings);
+}
+
+/**
+ * Build a pool of veteran experts grouped by personality, shuffled.
+ * When useVeterans is ON, we prioritize reusing these names so that
+ * updateAfterGame matches them to existing careers instead of creating new ones.
+ */
+function buildVeteranPool(
+  registry: ExpertRegistry,
+  lottoGame: LottoGameType
+): Map<string, ExpertCareer[]> {
+  const pool = new Map<string, ExpertCareer[]>();
+  for (const personality of PERSONALITIES) {
+    const matching = registry.experts
+      .filter(
+        (e) =>
+          e.personality === personality &&
+          (e.byLottoGame[lottoGame]?.gamesPlayed ?? 0) > 0
+      )
+      .sort(() => Math.random() - 0.5);
+    pool.set(personality, matching);
+  }
+  return pool;
+}
+
 function createManagers(
   settings: GameSettings,
   importedProfile?: WinnerProfile,
   registry?: ExpertRegistry
 ): Manager[] {
   const managers: Manager[] = [];
-  let nameIdx = 0;
+  let nameIdx = Math.floor(Math.random() * EXPERT_NAMES.length);
   const usedInGame = new Set<string>();
+  const usedSecrets = new Set<string>();
+
+  // When useVeterans is ON, build a pool of veterans grouped by personality
+  const veteranPool =
+    settings.useVeterans && registry
+      ? buildVeteranPool(registry, settings.lottoGame)
+      : null;
 
   for (let m = 0; m < settings.managerCount; m++) {
     const managerId = `mgr-${m + 1}`;
-    const secret = generateSecretCombination(settings);
+    const secret = pickSecretCombination(settings, usedSecrets);
     const experts: Expert[] = [];
 
     for (let e = 0; e < settings.expertsPerManager; e++) {
       const expertId = `${managerId}-exp-${e + 1}`;
-      const personality = PERSONALITIES[e % PERSONALITIES.length];
-      const { name, nextIdx } = pickName(nameIdx, personality, usedInGame, registry);
-      nameIdx = nextIdx;
-      usedInGame.add(name);
+      let personality: ExpertPersonality = PERSONALITIES[e % PERSONALITIES.length];
 
       const useProfile =
         importedProfile && m === 0 && e === 0 && personality === importedProfile.personality;
+
+      // Try to pick a veteran name first, then fall back to generated name
+      let name = "";
+      let veteranCareer: ExpertCareer | undefined;
+
+      if (!useProfile && veteranPool) {
+        const pool = veteranPool.get(personality) ?? [];
+        const vetIdx = pool.findIndex((c) => !usedInGame.has(c.name));
+        if (vetIdx !== -1) {
+          veteranCareer = pool[vetIdx];
+          name = veteranCareer.name;
+          pool.splice(vetIdx, 1);
+        } else {
+          // Pool for this personality is empty — try other personality pools
+          let found = false;
+          for (const otherP of PERSONALITIES) {
+            if (otherP === personality) continue;
+            const otherPool = veteranPool.get(otherP) ?? [];
+            const otherIdx = otherPool.findIndex((c) => !usedInGame.has(c.name));
+            if (otherIdx !== -1) {
+              veteranCareer = otherPool[otherIdx];
+              name = veteranCareer.name;
+              personality = veteranCareer.personality;
+              otherPool.splice(otherIdx, 1);
+              found = true;
+              break;
+            }
+          }
+          if (!found) {
+            const picked = pickName(nameIdx, personality, usedInGame, registry);
+            name = picked.name;
+            nameIdx = picked.nextIdx;
+          }
+        }
+      } else {
+        const picked = pickName(nameIdx, personality, usedInGame, registry);
+        name = picked.name;
+        nameIdx = picked.nextIdx;
+      }
+
+      usedInGame.add(name);
 
       // Veteran seeding: look up career data if useVeterans is enabled
       let confidenceMap: Record<number, number>;
       if (useProfile) {
         confidenceMap = { ...importedProfile.confidenceMap };
       } else if (settings.useVeterans && registry) {
-        const career = registry.experts.find(
-          (c) => c.name === name && c.personality === personality
-        );
+        const career =
+          veteranCareer ??
+          registry.experts.find(
+            (c) => c.name === name && c.personality === personality
+          );
         confidenceMap = career
           ? buildSeededConfidenceMap(career, settings.lottoGame, settings)
           : initializeConfidenceMap(settings);
@@ -176,16 +263,32 @@ export function useAiGameEngine(): GameEngine {
   );
 
   const connectionRef = useRef<HubConnection | null>(null);
-  const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const workerRef = useRef<Worker | null>(null);
   const runningRef = useRef(false);
   const cancelledRef = useRef(false);
   const registryRef = useRef<ExpertRegistry | undefined>(undefined);
 
-  const clearTimer = useCallback(() => {
-    if (timerRef.current) {
-      clearInterval(timerRef.current);
-      timerRef.current = null;
+  const getWorker = useCallback((): Worker => {
+    if (!workerRef.current) {
+      workerRef.current = new Worker(
+        new URL("../utils/timer.worker.ts", import.meta.url),
+        { type: "module" }
+      );
     }
+    return workerRef.current;
+  }, []);
+
+  const clearTimer = useCallback(() => {
+    workerRef.current?.postMessage({ type: "stop-countdown" });
+  }, []);
+
+  // Terminate worker on unmount
+  useEffect(() => {
+    return () => {
+      workerRef.current?.postMessage({ type: "stop-all" });
+      workerRef.current?.terminate();
+      workerRef.current = null;
+    };
   }, []);
 
   const getConnection = useCallback(async (): Promise<HubConnection> => {
@@ -297,10 +400,7 @@ export function useAiGameEngine(): GameEngine {
         for (let tryNum = 1; tryNum <= 6; tryNum++) {
           if (cancelledRef.current) return;
 
-          // Pace each try so the game is watchable even when AI calls fail fast
-          await new Promise((r) => setTimeout(r, settings.simulationSpeedMs));
-
-          if (cancelledRef.current) return;
+          // No artificial delay in AI mode — CLI latency provides natural pacing
 
           // Wait while paused
           while (!runningRef.current && !cancelledRef.current) {
@@ -541,7 +641,7 @@ export function useAiGameEngine(): GameEngine {
           for (let tryNum = 1; tryNum <= 6; tryNum++) {
             if (cancelledRef.current) break;
 
-            await new Promise((r) => setTimeout(r, settings.simulationSpeedMs));
+            // No artificial delay in AI mode — CLI latency provides natural pacing
 
             // Wait while paused
             while (!runningRef.current && !cancelledRef.current) {
@@ -705,6 +805,27 @@ export function useAiGameEngine(): GameEngine {
     [getConnection, executeAiExpertTurn, clearTimer]
   );
 
+  const handleCountdown = useCallback(() => {
+    setGameState((prev) => {
+      if (prev.phase !== "running") return prev;
+      const remaining = prev.timeRemaining - 1;
+      if (remaining <= 0) {
+        cancelledRef.current = true;
+        runningRef.current = false;
+        workerRef.current?.postMessage({ type: "stop-countdown" });
+        connectionRef.current?.invoke("CancelGame").catch(() => {});
+        return {
+          ...prev,
+          phase: "ended",
+          timeRemaining: 0,
+          result: "time_up",
+          log: addLog(prev.log, "⏱ Time's up! Game over.", "info"),
+        };
+      }
+      return { ...prev, timeRemaining: remaining };
+    });
+  }, []);
+
   const startGame = useCallback(
     (settings: GameSettings, importedProfile?: WinnerProfile, registry?: ExpertRegistry) => {
       clearTimer();
@@ -729,27 +850,12 @@ export function useAiGameEngine(): GameEngine {
 
       setGameState(newState);
 
-      // Timer countdown
-      timerRef.current = setInterval(() => {
-        setGameState((prev) => {
-          if (prev.phase !== "running") return prev;
-          const remaining = prev.timeRemaining - 1;
-          if (remaining <= 0) {
-            cancelledRef.current = true;
-            runningRef.current = false;
-            // Cancel on backend
-            connectionRef.current?.invoke("CancelGame").catch(() => {});
-            return {
-              ...prev,
-              phase: "ended",
-              timeRemaining: 0,
-              result: "time_up",
-              log: addLog(prev.log, "⏱ Time's up! Game over.", "info"),
-            };
-          }
-          return { ...prev, timeRemaining: remaining };
-        });
-      }, 1000);
+      // Start worker countdown timer (not throttled in background tabs)
+      const worker = getWorker();
+      worker.onmessage = (e: MessageEvent<{ type: string }>) => {
+        if (e.data.type === "countdown") handleCountdown();
+      };
+      worker.postMessage({ type: "start-countdown" });
 
       // Start the async game loop
       runGameLoop(managers, settings).catch((err) => {
@@ -760,7 +866,7 @@ export function useAiGameEngine(): GameEngine {
         }));
       });
     },
-    [clearTimer, runGameLoop]
+    [clearTimer, getWorker, handleCountdown, runGameLoop]
   );
 
   const pauseGame = useCallback(() => {
@@ -771,35 +877,20 @@ export function useAiGameEngine(): GameEngine {
 
   const resumeGame = useCallback(() => {
     runningRef.current = true;
-
-    // Restart timer
-    timerRef.current = setInterval(() => {
-      setGameState((prev) => {
-        if (prev.phase !== "running") return prev;
-        const remaining = prev.timeRemaining - 1;
-        if (remaining <= 0) {
-          cancelledRef.current = true;
-          runningRef.current = false;
-          connectionRef.current?.invoke("CancelGame").catch(() => {});
-          return {
-            ...prev,
-            phase: "ended",
-            timeRemaining: 0,
-            result: "time_up",
-            log: addLog(prev.log, "⏱ Time's up! Game over.", "info"),
-          };
-        }
-        return { ...prev, timeRemaining: remaining };
-      });
-    }, 1000);
-
+    const worker = getWorker();
+    worker.onmessage = (e: MessageEvent<{ type: string }>) => {
+      if (e.data.type === "countdown") handleCountdown();
+    };
+    worker.postMessage({ type: "start-countdown" });
     setGameState((prev) => ({ ...prev, phase: "running" }));
-  }, []);
+  }, [getWorker, handleCountdown]);
 
   const resetGame = useCallback(() => {
     cancelledRef.current = true;
     runningRef.current = false;
-    clearTimer();
+    workerRef.current?.postMessage({ type: "stop-all" });
+    workerRef.current?.terminate();
+    workerRef.current = null;
 
     // Disconnect SignalR
     if (connectionRef.current) {
@@ -809,7 +900,24 @@ export function useAiGameEngine(): GameEngine {
     }
 
     setGameState((prev) => createInitialState(prev.settings));
+  }, []);
+
+  const restoreGame = useCallback((state: GameState) => {
+    cancelledRef.current = true;
+    runningRef.current = false;
+    clearTimer();
+
+    // AI connection is lost on refresh — mark as interrupted if was in progress
+    const wasInProgress = state.phase === "running" || state.phase === "paused";
+    setGameState({
+      ...state,
+      phase: wasInProgress ? "ended" : state.phase,
+      result: wasInProgress ? "interrupted" : state.result,
+      log: wasInProgress
+        ? addLog(state.log, "⚡ Game interrupted — browser was refreshed. AI connection lost.", "info")
+        : state.log,
+    });
   }, [clearTimer]);
 
-  return { gameState, startGame, pauseGame, resumeGame, resetGame };
+  return { gameState, startGame, pauseGame, resumeGame, resetGame, restoreGame };
 }

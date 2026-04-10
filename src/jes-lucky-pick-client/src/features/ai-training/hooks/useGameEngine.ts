@@ -1,4 +1,4 @@
-import { useState, useRef, useCallback } from "react";
+import { useState, useRef, useCallback, useEffect } from "react";
 import type {
   GameState,
   GameSettings,
@@ -9,8 +9,9 @@ import type {
   WinnerProfile,
   ActivityLogEntry,
   TryResult,
+  LottoGameType,
 } from "../types/game";
-import type { ExpertRegistry } from "../types/expert-registry";
+import type { ExpertRegistry, ExpertCareer } from "../types/expert-registry";
 import { buildSeededConfidenceMap } from "./useExpertRegistry";
 import {
   executeStrategy,
@@ -82,38 +83,125 @@ function initializeConfidenceMap(settings: GameSettings): Record<number, number>
   return map;
 }
 
+function pickSecretCombination(settings: GameSettings, usedSecrets: Set<string>): number[] {
+  const draws = settings.historicalDraws;
+  if (draws && draws.length > 0) {
+    const shuffled = [...draws].sort(() => Math.random() - 0.5);
+    for (const draw of shuffled) {
+      const key = [...draw].sort((a, b) => a - b).join(",");
+      if (!usedSecrets.has(key)) {
+        usedSecrets.add(key);
+        return draw;
+      }
+    }
+    return shuffled[Math.floor(Math.random() * shuffled.length)];
+  }
+  return generateSecretCombination(settings);
+}
+
+/**
+ * Build a pool of veteran experts grouped by personality, shuffled.
+ * When useVeterans is ON, we prioritize reusing these names so that
+ * updateAfterGame matches them to existing careers instead of creating new ones.
+ */
+function buildVeteranPool(
+  registry: ExpertRegistry,
+  lottoGame: LottoGameType
+): Map<string, ExpertCareer[]> {
+  const pool = new Map<string, ExpertCareer[]>();
+  for (const personality of PERSONALITIES) {
+    const matching = registry.experts
+      .filter(
+        (e) =>
+          e.personality === personality &&
+          (e.byLottoGame[lottoGame]?.gamesPlayed ?? 0) > 0
+      )
+      .sort(() => Math.random() - 0.5); // shuffle so we don't always pick the same ones
+    pool.set(personality, matching);
+  }
+  return pool;
+}
+
 function createManagers(
   settings: GameSettings,
   importedProfile?: WinnerProfile,
   registry?: ExpertRegistry
 ): Manager[] {
   const managers: Manager[] = [];
-  let nameIdx = 0;
+  let nameIdx = Math.floor(Math.random() * EXPERT_NAMES.length);
   const usedInGame = new Set<string>();
+  const usedSecrets = new Set<string>();
+
+  // When useVeterans is ON, build a pool of veterans grouped by personality
+  const veteranPool =
+    settings.useVeterans && registry
+      ? buildVeteranPool(registry, settings.lottoGame)
+      : null;
 
   for (let m = 0; m < settings.managerCount; m++) {
     const managerId = `mgr-${m + 1}`;
-    const secret = generateSecretCombination(settings);
+    const secret = pickSecretCombination(settings, usedSecrets);
     const experts: Expert[] = [];
 
     for (let e = 0; e < settings.expertsPerManager; e++) {
       const expertId = `${managerId}-exp-${e + 1}`;
-      const personality = PERSONALITIES[e % PERSONALITIES.length];
-      const { name, nextIdx } = pickName(nameIdx, personality, usedInGame, registry);
-      nameIdx = nextIdx;
-      usedInGame.add(name);
+      let personality: ExpertPersonality = PERSONALITIES[e % PERSONALITIES.length];
 
       const useProfile =
         importedProfile && m === 0 && e === 0 && personality === importedProfile.personality;
+
+      // Try to pick a veteran name first, then fall back to generated name
+      let name = "";
+      let veteranCareer: ExpertCareer | undefined;
+
+      if (!useProfile && veteranPool) {
+        const pool = veteranPool.get(personality) ?? [];
+        // Pick the first veteran whose name isn't already used in this game
+        const vetIdx = pool.findIndex((c) => !usedInGame.has(c.name));
+        if (vetIdx !== -1) {
+          veteranCareer = pool[vetIdx];
+          name = veteranCareer.name;
+          pool.splice(vetIdx, 1); // remove so we don't pick the same one again
+        } else {
+          // Pool for this personality is empty — try other personality pools
+          let found = false;
+          for (const otherP of PERSONALITIES) {
+            if (otherP === personality) continue;
+            const otherPool = veteranPool.get(otherP) ?? [];
+            const otherIdx = otherPool.findIndex((c) => !usedInGame.has(c.name));
+            if (otherIdx !== -1) {
+              veteranCareer = otherPool[otherIdx];
+              name = veteranCareer.name;
+              personality = veteranCareer.personality;
+              otherPool.splice(otherIdx, 1);
+              found = true;
+              break;
+            }
+          }
+          if (!found) {
+            const picked = pickName(nameIdx, personality, usedInGame, registry);
+            name = picked.name;
+            nameIdx = picked.nextIdx;
+          }
+        }
+      } else {
+        const picked = pickName(nameIdx, personality, usedInGame, registry);
+        name = picked.name;
+        nameIdx = picked.nextIdx;
+      }
+
+      usedInGame.add(name);
 
       // Veteran seeding: look up career data if useVeterans is enabled
       let confidenceMap: Record<number, number>;
       if (useProfile) {
         confidenceMap = { ...importedProfile.confidenceMap };
       } else if (settings.useVeterans && registry) {
-        const career = registry.experts.find(
-          (c) => c.name === name && c.personality === personality
-        );
+        const career =
+          veteranCareer ??
+          registry.experts.find(
+            (c) => c.name === name && c.personality === personality
+          );
         confidenceMap = career
           ? buildSeededConfidenceMap(career, settings.lottoGame, settings)
           : initializeConfidenceMap(settings);
@@ -173,18 +261,21 @@ export function useGameEngine(): GameEngine {
     })
   );
 
-  const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
-  const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  // Web Worker timer — not throttled when the browser tab is hidden
+  const workerRef = useRef<Worker | null>(null);
+
+  const getWorker = useCallback((): Worker => {
+    if (!workerRef.current) {
+      workerRef.current = new Worker(
+        new URL("../utils/timer.worker.ts", import.meta.url),
+        { type: "module" }
+      );
+    }
+    return workerRef.current;
+  }, []);
 
   const clearIntervals = useCallback(() => {
-    if (intervalRef.current) {
-      clearInterval(intervalRef.current);
-      intervalRef.current = null;
-    }
-    if (timerRef.current) {
-      clearInterval(timerRef.current);
-      timerRef.current = null;
-    }
+    workerRef.current?.postMessage({ type: "stop-all" });
   }, []);
 
   const tick = useCallback(() => {
@@ -330,6 +421,37 @@ export function useGameEngine(): GameEngine {
     });
   }, []);
 
+  const handleCountdown = useCallback(() => {
+    setGameState((prev) => {
+      if (prev.phase !== "running") return prev;
+      const remaining = prev.timeRemaining - 1;
+      if (remaining <= 0) {
+        workerRef.current?.postMessage({ type: "stop-all" });
+        return {
+          ...prev,
+          phase: "ended",
+          timeRemaining: 0,
+          result: "time_up",
+          log: addLog(prev.log, "⏱ Time's up! Game over.", "info"),
+        };
+      }
+      return { ...prev, timeRemaining: remaining };
+    });
+  }, []);
+
+  const startWorkerListeners = useCallback(
+    (speedMs: number) => {
+      const worker = getWorker();
+      worker.onmessage = (e: MessageEvent<{ type: string }>) => {
+        if (e.data.type === "tick") tick();
+        else if (e.data.type === "countdown") handleCountdown();
+      };
+      worker.postMessage({ type: "start-tick", ms: speedMs });
+      worker.postMessage({ type: "start-countdown" });
+    },
+    [getWorker, tick, handleCountdown]
+  );
+
   const startGame = useCallback(
     (settings: GameSettings, importedProfile?: WinnerProfile, registry?: ExpertRegistry) => {
       clearIntervals();
@@ -356,29 +478,9 @@ export function useGameEngine(): GameEngine {
       };
 
       setGameState(newState);
-
-      // Start tick interval
-      intervalRef.current = setInterval(tick, settings.simulationSpeedMs);
-
-      // Start timer (1s countdown)
-      timerRef.current = setInterval(() => {
-        setGameState((prev) => {
-          if (prev.phase !== "running") return prev;
-          const remaining = prev.timeRemaining - 1;
-          if (remaining <= 0) {
-            return {
-              ...prev,
-              phase: "ended",
-              timeRemaining: 0,
-              result: "time_up",
-              log: addLog(prev.log, "⏱ Time's up! Game over.", "info"),
-            };
-          }
-          return { ...prev, timeRemaining: remaining };
-        });
-      }, 1000);
+      startWorkerListeners(settings.simulationSpeedMs);
     },
-    [tick, clearIntervals]
+    [clearIntervals, startWorkerListeners]
   );
 
   const pauseGame = useCallback(() => {
@@ -389,32 +491,38 @@ export function useGameEngine(): GameEngine {
   const resumeGame = useCallback(() => {
     setGameState((prev) => {
       if (prev.phase !== "paused") return prev;
-      const newState = { ...prev, phase: "running" as const };
-      intervalRef.current = setInterval(tick, prev.settings.simulationSpeedMs);
-      timerRef.current = setInterval(() => {
-        setGameState((p) => {
-          if (p.phase !== "running") return p;
-          const remaining = p.timeRemaining - 1;
-          if (remaining <= 0) {
-            return {
-              ...p,
-              phase: "ended",
-              timeRemaining: 0,
-              result: "time_up",
-              log: addLog(p.log, "⏱ Time's up! Game over.", "info"),
-            };
-          }
-          return { ...p, timeRemaining: remaining };
-        });
-      }, 1000);
-      return newState;
+      startWorkerListeners(prev.settings.simulationSpeedMs);
+      return { ...prev, phase: "running" as const };
     });
-  }, [tick]);
+  }, [startWorkerListeners]);
 
   const resetGame = useCallback(() => {
-    clearIntervals();
+    workerRef.current?.postMessage({ type: "stop-all" });
+    workerRef.current?.terminate();
+    workerRef.current = null;
     setGameState((prev) => createInitialState(prev.settings));
+  }, []);
+
+  // Terminate worker when the component using this hook unmounts
+  useEffect(() => {
+    return () => {
+      workerRef.current?.postMessage({ type: "stop-all" });
+      workerRef.current?.terminate();
+      workerRef.current = null;
+    };
+  }, []);
+
+  const restoreGame = useCallback((state: GameState) => {
+    clearIntervals();
+    // Restore in paused state so user can resume the simulation
+    setGameState({
+      ...state,
+      phase: state.phase === "ended" ? "ended" : "paused",
+      log: state.phase === "ended"
+        ? state.log
+        : addLog(state.log, "⏸ Game restored from previous session", "info"),
+    });
   }, [clearIntervals]);
 
-  return { gameState, startGame, pauseGame, resumeGame, resetGame };
+  return { gameState, startGame, pauseGame, resumeGame, resetGame, restoreGame };
 }

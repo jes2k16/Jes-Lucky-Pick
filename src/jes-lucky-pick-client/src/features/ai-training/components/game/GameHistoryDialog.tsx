@@ -8,6 +8,17 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@/components/ui/alert-dialog";
 import { LOTTO_GAMES } from "../../types/game";
 import {
   Table,
@@ -75,18 +86,47 @@ export function GameHistoryDialog({
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="w-[70vw] sm:max-w-none max-h-[85vh] overflow-y-auto overflow-x-hidden">
         <DialogHeader>
-          <DialogTitle className="flex items-center gap-2">
-            <ResultIcon className={`h-5 w-5 ${resultColor}`} />
-            Game Results
-            <Badge variant="outline" className="ml-2 text-xs gap-1">
-              {entry.gameMode === "simulation" ? (
-                <Cpu className="h-3 w-3" />
-              ) : (
-                <BrainCircuit className="h-3 w-3" />
-              )}
-              {entry.gameMode === "simulation" ? "Simulation" : "AI Agent"}
-            </Badge>
-          </DialogTitle>
+          <div className="flex items-center justify-between pr-6">
+            <DialogTitle className="flex items-center gap-2">
+              <ResultIcon className={`h-5 w-5 ${resultColor}`} />
+              Game Results
+              <Badge variant="outline" className="ml-2 text-xs gap-1">
+                {entry.gameMode === "simulation" ? (
+                  <Cpu className="h-3 w-3" />
+                ) : (
+                  <BrainCircuit className="h-3 w-3" />
+                )}
+                {entry.gameMode === "simulation" ? "Simulation" : "AI Agent"}
+              </Badge>
+            </DialogTitle>
+            {onDelete && (
+              <AlertDialog>
+                <AlertDialogTrigger asChild>
+                  <Button variant="destructive" size="sm" className="gap-2">
+                    <Trash2 className="h-4 w-4" />
+                    Delete Record
+                  </Button>
+                </AlertDialogTrigger>
+                <AlertDialogContent>
+                  <AlertDialogHeader>
+                    <AlertDialogTitle>Delete Training Record</AlertDialogTitle>
+                    <AlertDialogDescription>
+                      Are you sure you want to delete this training session record? This action cannot be undone.
+                    </AlertDialogDescription>
+                  </AlertDialogHeader>
+                  <AlertDialogFooter>
+                    <AlertDialogCancel>Cancel</AlertDialogCancel>
+                    <AlertDialogAction
+                      onClick={() => onDelete(entry.id)}
+                      className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                    >
+                      Delete
+                    </AlertDialogAction>
+                  </AlertDialogFooter>
+                </AlertDialogContent>
+              </AlertDialog>
+            )}
+          </div>
         </DialogHeader>
 
         <div className="space-y-4">
@@ -154,16 +194,18 @@ export function GameHistoryDialog({
                   </Badge>
                 </div>
 
-                <div>
-                  <p className="text-xs text-muted-foreground mb-1">
-                    Secret Combination
-                  </p>
-                  <div className="flex gap-1.5 flex-wrap">
-                    {entry.winner.managerSecretCombination.map((n) => (
-                      <NumberBall key={n} number={n} size="sm" />
-                    ))}
+                {entry.winner.managerSecretCombination && (
+                  <div>
+                    <p className="text-xs text-muted-foreground mb-1">
+                      Secret Combination
+                    </p>
+                    <div className="flex gap-1.5 flex-wrap">
+                      {entry.winner.managerSecretCombination.map((n) => (
+                        <NumberBall key={n} number={n} size="sm" />
+                      ))}
+                    </div>
                   </div>
-                </div>
+                )}
 
                 <div className="grid grid-cols-3 gap-4 text-sm">
                   <div>
@@ -183,16 +225,18 @@ export function GameHistoryDialog({
                   </div>
                 </div>
 
-                <div>
-                  <p className="text-xs text-muted-foreground mb-1">
-                    Winning Guess
-                  </p>
-                  <div className="flex gap-1.5 flex-wrap">
-                    {entry.winner.winningGuess.map((n, i) => (
-                      <NumberBall key={i} number={n} size="sm" />
-                    ))}
+                {entry.winner.winningGuess && (
+                  <div>
+                    <p className="text-xs text-muted-foreground mb-1">
+                      Winning Guess
+                    </p>
+                    <div className="flex gap-1.5 flex-wrap">
+                      {entry.winner.winningGuess.map((n, i) => (
+                        <NumberBall key={i} number={n} size="sm" />
+                      ))}
+                    </div>
                   </div>
-                </div>
+                )}
 
                 <div className="border-t pt-3">
                   <Button
@@ -290,20 +334,6 @@ export function GameHistoryDialog({
             </div>
           </div>
 
-          {/* Delete button */}
-          {onDelete && (
-            <div className="flex justify-end pt-2">
-              <Button
-                variant="destructive"
-                size="sm"
-                className="gap-2"
-                onClick={() => onDelete(entry.id)}
-              >
-                <Trash2 className="h-4 w-4" />
-                Delete Record
-              </Button>
-            </div>
-          )}
         </div>
       </DialogContent>
     </Dialog>

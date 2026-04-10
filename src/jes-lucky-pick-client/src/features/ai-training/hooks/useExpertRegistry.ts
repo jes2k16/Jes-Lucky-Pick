@@ -1,8 +1,7 @@
-import { useState, useCallback, useEffect } from "react";
+import { useCallback, useEffect } from "react";
 import type {
   ExpertCareer,
   ExpertLottoStats,
-  ExpertRegistry,
   GameMemory,
   CareerSummary,
 } from "../types/expert-registry";
@@ -13,7 +12,7 @@ import type {
   Expert,
   Manager,
 } from "../types/game";
-import { getExpertCareers, syncExpertCareers, patchExpertCareer } from "../api/training-api";
+import { useExpertRegistryStore } from "@/stores/expertRegistryStore";
 
 const MAX_MEMORIES = 20;
 const DECAY_FACTOR = 0.7;
@@ -58,7 +57,7 @@ function buildGameMemory(
   manager: Manager,
   gameId: string,
   result: string,
-  mode?: "simulation" | "ai-agent"
+  mode?: "simulation" | "ai-agent" | "scheduled"
 ): GameMemory {
   const bestTry = expert.tryHistory.reduce(
     (best, t) => (t.stars > best.stars ? t : best),
@@ -339,18 +338,19 @@ export function buildCareerContext(
 // ── Hook ──
 
 export function useExpertRegistry() {
-  const [registry, setRegistry] = useState<ExpertRegistry>({ version: 1, experts: [] });
+  const {
+    registry,
+    setRegistry,
+    loadFromServer,
+    syncToServer,
+    updateCareer,
+    deleteCareer,
+  } = useExpertRegistryStore();
 
-  // Load from DB on mount
+  // Load from DB on mount (only once across all consumers)
   useEffect(() => {
-    getExpertCareers()
-      .then((careers) => {
-        setRegistry({ version: 1, experts: careers });
-      })
-      .catch(() => {
-        // Server unavailable — registry stays empty for this session
-      });
-  }, []);
+    loadFromServer();
+  }, [loadFromServer]);
 
   const getCareer = useCallback(
     (name: string, personality: string): ExpertCareer | null => {
@@ -373,157 +373,138 @@ export function useExpertRegistry() {
   );
 
   const updateAfterGame = useCallback(
-    (gameState: GameState, lottoGame: LottoGameType, mode?: "simulation" | "ai-agent") => {
-      setRegistry((prev) => {
-        const updated = { ...prev, experts: [...prev.experts] };
-        const gameId = crypto.randomUUID();
-        const now = new Date().toISOString();
+    (gameState: GameState, lottoGame: LottoGameType, mode?: "simulation" | "ai-agent" | "scheduled") => {
+      const prev = useExpertRegistryStore.getState().registry;
+      const updated = { ...prev, experts: [...prev.experts] };
+      const gameId = crypto.randomUUID();
+      const now = new Date().toISOString();
 
-        for (const manager of gameState.managers) {
-          for (const expert of manager.experts) {
-            let careerIdx = updated.experts.findIndex(
-              (c) => c.name === expert.name && c.personality === expert.personality
-            );
+      for (const manager of gameState.managers) {
+        for (const expert of manager.experts) {
+          let careerIdx = updated.experts.findIndex(
+            (c) => c.name === expert.name && c.personality === expert.personality
+          );
 
-            if (careerIdx === -1) {
-              updated.experts.push({
-                id: crypto.randomUUID(),
-                name: expert.name,
-                personality: expert.personality,
+          if (careerIdx === -1) {
+            updated.experts.push({
+              id: crypto.randomUUID(),
+              name: expert.name,
+              personality: expert.personality,
+              gamesPlayed: 0,
+              wins: 0,
+              eliminations: 0,
+              totalRoundsPlayed: 0,
+              bestEverScore: 0,
+              avgRoundScore: 0,
+              lastPlayedAt: null,
+              byLottoGame: {},
+            });
+            careerIdx = updated.experts.length - 1;
+          }
+
+          const career = { ...updated.experts[careerIdx] };
+          updated.experts[careerIdx] = career;
+
+          career.gamesPlayed += 1;
+          if (expert.status === "winner") career.wins += 1;
+          if (expert.status === "eliminated") career.eliminations += 1;
+
+          const roundsThisGame = expert.roundScores.length;
+          career.totalRoundsPlayed += roundsThisGame;
+          career.lastPlayedAt = now;
+
+          const bestThisGame = expert.tryHistory.reduce(
+            (max, t) => Math.max(max, t.stars),
+            0
+          );
+          if (bestThisGame > career.bestEverScore) {
+            career.bestEverScore = bestThisGame;
+          }
+
+          if (roundsThisGame > 0) {
+            const avgThisGame =
+              expert.roundScores.reduce((s, r) => s + r, 0) / roundsThisGame;
+            const totalRounds = career.totalRoundsPlayed;
+            career.avgRoundScore =
+              totalRounds > 0
+                ? (career.avgRoundScore * (totalRounds - roundsThisGame) +
+                    avgThisGame * roundsThisGame) /
+                  totalRounds
+                : avgThisGame;
+          }
+
+          career.byLottoGame = { ...career.byLottoGame };
+          const existingStats = career.byLottoGame[lottoGame];
+
+          const stats: ExpertLottoStats = existingStats
+            ? { ...existingStats }
+            : {
+                lottoGameCode: lottoGame,
                 gamesPlayed: 0,
                 wins: 0,
                 eliminations: 0,
-                totalRoundsPlayed: 0,
-                bestEverScore: 0,
-                avgRoundScore: 0,
-                lastPlayedAt: null,
-                byLottoGame: {},
-              });
-              careerIdx = updated.experts.length - 1;
-            }
+                confidenceMap: {},
+                gameMemories: [],
+                careerSummary: null,
+              };
 
-            const career = { ...updated.experts[careerIdx] };
-            updated.experts[careerIdx] = career;
+          stats.gamesPlayed += 1;
+          if (expert.status === "winner") stats.wins += 1;
+          if (expert.status === "eliminated") stats.eliminations += 1;
 
-            career.gamesPlayed += 1;
-            if (expert.status === "winner") career.wins += 1;
-            if (expert.status === "eliminated") career.eliminations += 1;
+          stats.confidenceMap = mergeConfidenceMaps(
+            stats.confidenceMap,
+            expert.confidenceMap
+          );
 
-            const roundsThisGame = expert.roundScores.length;
-            career.totalRoundsPlayed += roundsThisGame;
-            career.lastPlayedAt = now;
+          let resultStr = "survived_time_up";
+          if (expert.status === "winner") resultStr = "won";
+          else if (expert.status === "eliminated")
+            resultStr = `eliminated_round_${expert.eliminatedAtRound}`;
 
-            const bestThisGame = expert.tryHistory.reduce(
-              (max, t) => Math.max(max, t.stars),
-              0
+          const memory = buildGameMemory(expert, manager, gameId, resultStr, mode);
+          stats.gameMemories = [...stats.gameMemories, memory];
+
+          if (stats.gameMemories.length > MAX_MEMORIES) {
+            const overflow = stats.gameMemories.slice(
+              0,
+              stats.gameMemories.length - MAX_MEMORIES
             );
-            if (bestThisGame > career.bestEverScore) {
-              career.bestEverScore = bestThisGame;
-            }
+            stats.gameMemories = stats.gameMemories.slice(-MAX_MEMORIES);
 
-            if (roundsThisGame > 0) {
-              const avgThisGame =
-                expert.roundScores.reduce((s, r) => s + r, 0) / roundsThisGame;
-              const totalRounds = career.totalRoundsPlayed;
-              career.avgRoundScore =
-                totalRounds > 0
-                  ? (career.avgRoundScore * (totalRounds - roundsThisGame) +
-                      avgThisGame * roundsThisGame) /
-                    totalRounds
-                  : avgThisGame;
-            }
-
-            career.byLottoGame = { ...career.byLottoGame };
-            const existingStats = career.byLottoGame[lottoGame];
-
-            const stats: ExpertLottoStats = existingStats
-              ? { ...existingStats }
-              : {
-                  lottoGameCode: lottoGame,
-                  gamesPlayed: 0,
-                  wins: 0,
-                  eliminations: 0,
-                  confidenceMap: {},
-                  gameMemories: [],
-                  careerSummary: null,
-                };
-
-            stats.gamesPlayed += 1;
-            if (expert.status === "winner") stats.wins += 1;
-            if (expert.status === "eliminated") stats.eliminations += 1;
-
-            stats.confidenceMap = mergeConfidenceMaps(
-              stats.confidenceMap,
-              expert.confidenceMap
-            );
-
-            let resultStr = "survived_time_up";
-            if (expert.status === "winner") resultStr = "won";
-            else if (expert.status === "eliminated")
-              resultStr = `eliminated_round_${expert.eliminatedAtRound}`;
-
-            const memory = buildGameMemory(expert, manager, gameId, resultStr, mode);
-            stats.gameMemories = [...stats.gameMemories, memory];
-
-            if (stats.gameMemories.length > MAX_MEMORIES) {
-              const overflow = stats.gameMemories.slice(
-                0,
-                stats.gameMemories.length - MAX_MEMORIES
-              );
-              stats.gameMemories = stats.gameMemories.slice(-MAX_MEMORIES);
-
-              const existingSummaryMemories = stats.careerSummary
-                ? Array(stats.careerSummary.totalGames).fill(null)
-                : [];
-              stats.careerSummary = buildCareerSummary([
-                ...existingSummaryMemories.map(
-                  () =>
-                    ({
-                      secretCombo: stats.careerSummary?.recurringSecretNumbers ?? [],
-                      bestGuess: stats.careerSummary?.recurringBestGuessNumbers ?? [],
-                      result: "unknown",
-                    }) as unknown as GameMemory
-                ),
-                ...overflow,
-              ]);
-              stats.careerSummary.totalGames =
-                (existingStats?.careerSummary?.totalGames ?? 0) + overflow.length;
-            }
-
-            career.byLottoGame[lottoGame] = stats;
+            const existingSummaryMemories = stats.careerSummary
+              ? Array(stats.careerSummary.totalGames).fill(null)
+              : [];
+            stats.careerSummary = buildCareerSummary([
+              ...existingSummaryMemories.map(
+                () =>
+                  ({
+                    secretCombo: stats.careerSummary?.recurringSecretNumbers ?? [],
+                    bestGuess: stats.careerSummary?.recurringBestGuessNumbers ?? [],
+                    result: "unknown",
+                  }) as unknown as GameMemory
+              ),
+              ...overflow,
+            ]);
+            stats.careerSummary.totalGames =
+              (existingStats?.careerSummary?.totalGames ?? 0) + overflow.length;
           }
+
+          career.byLottoGame[lottoGame] = stats;
         }
+      }
 
-        // Persist to DB — fire-and-forget
-        syncExpertCareers(updated.experts).catch(() => {});
-
-        return updated;
-      });
+      // Update store and persist to DB
+      setRegistry(updated);
+      syncToServer(updated.experts);
     },
-    []
+    [setRegistry, syncToServer]
   );
 
   const getCareerById = useCallback(
     (id: string): ExpertCareer | null =>
       registry.experts.find((e) => e.id === id) ?? null,
     [registry]
-  );
-
-  const updateCareer = useCallback(
-    (id: string, updates: Partial<Pick<ExpertCareer, "name" | "isFavorite">>) => {
-      // Optimistic update in-memory
-      setRegistry((prev) => {
-        const idx = prev.experts.findIndex((e) => e.id === id);
-        if (idx === -1) return prev;
-        return {
-          ...prev,
-          experts: prev.experts.map((e, i) => (i === idx ? { ...e, ...updates } : e)),
-        };
-      });
-      // Persist to DB
-      patchExpertCareer(id, updates).catch(() => {});
-    },
-    []
   );
 
   const deduplicateRegistry = useCallback((): { fixed: number; names: string[] } => {
@@ -580,7 +561,7 @@ export function useExpertRegistry() {
         if (idx !== -1) {
           updatedExperts[idx] = { ...updatedExperts[idx], name: newName };
           fixed.push(`${baseName} (${career.personality}) → ${newName}`);
-          patchExpertCareer(career.id, { name: newName }).catch(() => {});
+          updateCareer(career.id, { name: newName });
         }
       }
     }
@@ -590,7 +571,7 @@ export function useExpertRegistry() {
     }
 
     return { fixed: fixed.length + (idFixed > 0 ? 1 : 0), names: fixed };
-  }, [registry]);
+  }, [registry, setRegistry, updateCareer]);
 
   return {
     registry,
@@ -599,6 +580,7 @@ export function useExpertRegistry() {
     getVeteranCount,
     updateAfterGame,
     updateCareer,
+    deleteCareer,
     deduplicateRegistry,
   };
 }

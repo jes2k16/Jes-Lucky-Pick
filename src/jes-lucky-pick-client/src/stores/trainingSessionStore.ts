@@ -1,4 +1,5 @@
 import { create } from "zustand";
+import { persist } from "zustand/middleware";
 import type { GameSettings, WinnerProfile } from "@/features/ai-training/types/game";
 
 interface TrainingSessionState {
@@ -14,20 +15,32 @@ interface TrainingSessionState {
   endSession: () => void;
 }
 
-export const useTrainingSessionStore = create<TrainingSessionState>((set) => ({
-  isGameActive: false,
-  gameSettings: null,
-  importedProfile: null,
-  startSession: (settings, profile) =>
-    set({
-      isGameActive: true,
-      gameSettings: settings,
-      importedProfile: profile ?? null,
-    }),
-  endSession: () =>
-    set({
+export const useTrainingSessionStore = create<TrainingSessionState>()(
+  persist(
+    (set) => ({
       isGameActive: false,
       gameSettings: null,
       importedProfile: null,
+      startSession: (settings, profile) =>
+        set({
+          isGameActive: true,
+          gameSettings: settings,
+          importedProfile: profile ?? null,
+        }),
+      endSession: () =>
+        set({
+          isGameActive: false,
+          gameSettings: null,
+          importedProfile: null,
+        }),
     }),
-}));
+    {
+      name: "jes-training-session",
+      partialize: (state) => ({
+        isGameActive: state.isGameActive,
+        gameSettings: state.gameSettings,
+        importedProfile: state.importedProfile,
+      }),
+    }
+  )
+);

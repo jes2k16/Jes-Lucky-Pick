@@ -1,11 +1,22 @@
 import { useState, useEffect } from "react";
-import { Star } from "lucide-react";
+import { Star, Trash2 } from "lucide-react";
 import {
   Dialog,
   DialogContent,
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@/components/ui/alert-dialog";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -13,7 +24,7 @@ import { Label } from "@/components/ui/label";
 import { Card, CardContent } from "@/components/ui/card";
 import { NumberBall } from "@/components/shared/NumberBall";
 import { useExpertRegistry } from "../../hooks/useExpertRegistry";
-import { formatDate } from "@/lib/format-date";
+import { formatDateTime } from "@/lib/format-date";
 
 const PERSONALITY_COLORS: Record<string, string> = {
   Scanner: "bg-cyan-500/10 text-cyan-500 border-cyan-500/20",
@@ -34,12 +45,14 @@ interface VeteranDetailModalProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   careerId: string | null;
+  onDelete?: (id: string) => void;
 }
 
 export function VeteranDetailModal({
   open,
   onOpenChange,
   careerId,
+  onDelete,
 }: VeteranDetailModalProps) {
   const { registry, getCareerById, updateCareer } = useExpertRegistry();
   const [nameInput, setNameInput] = useState("");
@@ -71,7 +84,11 @@ export function VeteranDetailModal({
         .map(([k]) => Number(k))
     : [];
 
-  const recentMemories = lottoStats?.gameMemories.slice(-5).reverse() ?? [];
+  const recentMemories = lottoStats
+    ? [...lottoStats.gameMemories]
+        .sort((a, b) => new Date(b.playedAt).getTime() - new Date(a.playedAt).getTime())
+        .slice(0, 5)
+    : [];
 
   function handleSaveName() {
     const trimmed = nameInput.trim();
@@ -100,15 +117,47 @@ export function VeteranDetailModal({
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-2xl overflow-y-auto max-h-[85vh]">
         <DialogHeader>
-          <DialogTitle className="flex items-center gap-2">
-            {career.name}
-            <Badge
-              variant="outline"
-              className={PERSONALITY_COLORS[career.personality]}
-            >
-              {career.personality}
-            </Badge>
-          </DialogTitle>
+          <div className="flex items-center justify-between pr-6">
+            <DialogTitle className="flex items-center gap-2">
+              {career.name}
+              <Badge
+                variant="outline"
+                className={PERSONALITY_COLORS[career.personality]}
+              >
+                {career.personality}
+              </Badge>
+            </DialogTitle>
+            {onDelete && (
+              <AlertDialog>
+                <AlertDialogTrigger asChild>
+                  <Button variant="destructive" size="sm" className="gap-2">
+                    <Trash2 className="h-4 w-4" />
+                    Delete Record
+                  </Button>
+                </AlertDialogTrigger>
+                <AlertDialogContent>
+                  <AlertDialogHeader>
+                    <AlertDialogTitle>Delete Veteran Record</AlertDialogTitle>
+                    <AlertDialogDescription>
+                      Are you sure you want to delete <strong>{career.name}</strong>? This will permanently remove their career stats, game memories, and confidence data. This action cannot be undone.
+                    </AlertDialogDescription>
+                  </AlertDialogHeader>
+                  <AlertDialogFooter>
+                    <AlertDialogCancel>Cancel</AlertDialogCancel>
+                    <AlertDialogAction
+                      onClick={() => {
+                        onDelete(careerId!);
+                        onOpenChange(false);
+                      }}
+                      className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                    >
+                      Delete
+                    </AlertDialogAction>
+                  </AlertDialogFooter>
+                </AlertDialogContent>
+              </AlertDialog>
+            )}
+          </div>
         </DialogHeader>
 
         <div className="space-y-5">
@@ -190,7 +239,7 @@ export function VeteranDetailModal({
                     className="flex flex-wrap items-center gap-2 text-sm border rounded-md p-2"
                   >
                     <span className="text-muted-foreground text-xs whitespace-nowrap">
-                      {formatDate(memory.playedAt)}
+                      {formatDateTime(memory.playedAt)}
                     </span>
                     <Badge variant={resultBadgeVariant(memory.result)} className="text-xs">
                       {memory.result === "won"

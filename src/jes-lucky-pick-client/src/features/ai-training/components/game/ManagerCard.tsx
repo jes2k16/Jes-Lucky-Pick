@@ -46,15 +46,15 @@ export function ManagerCard({
             )}
           </div>
         </div>
-        {/* Secret combination — masked */}
+        {/* Secret combination — revealed */}
         <div className="flex items-center gap-1 mt-1">
           <span className="text-xs text-muted-foreground mr-1">Secret:</span>
-          {Array.from({ length: combinationSize }, (_, i) => (
+          {manager.secretCombination.map((num, i) => (
             <span
               key={i}
-              className="inline-flex items-center justify-center h-6 w-6 rounded-full bg-muted text-muted-foreground text-xs font-mono"
+              className="inline-flex items-center justify-center h-6 w-6 rounded-full bg-primary/15 text-primary text-xs font-mono font-bold"
             >
-              ●
+              {num}
             </span>
           ))}
         </div>

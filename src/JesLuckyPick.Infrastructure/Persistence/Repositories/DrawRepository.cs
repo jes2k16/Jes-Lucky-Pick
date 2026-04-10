@@ -52,6 +52,16 @@ public class DrawRepository(AppDbContext context) : IDrawRepository
         await context.SaveChangesAsync(ct);
     }
 
+    public async Task UpdateAsync(Draw draw, CancellationToken ct = default)
+    {
+        context.Draws.Update(draw);
+        await context.SaveChangesAsync(ct);
+    }
+
+    public async Task<Draw?> GetByGameAndDateAsync(Guid gameId, DateTime drawDate, CancellationToken ct = default)
+        => await context.Draws
+            .FirstOrDefaultAsync(d => d.GameId == gameId && d.DrawDate == drawDate, ct);
+
     public async Task<Draw?> GetFirstOnOrAfterDateAsync(Guid gameId, DateTime date, CancellationToken ct = default)
         => await context.Draws
             .Where(d => d.GameId == gameId && d.DrawDate >= date)

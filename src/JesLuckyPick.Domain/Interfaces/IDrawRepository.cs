@@ -12,5 +12,7 @@ public interface IDrawRepository
     Task<IReadOnlyList<Draw>> GetAllByGameAsync(Guid gameId, CancellationToken ct = default);
     Task<int> GetCountAsync(Guid gameId, CancellationToken ct = default);
     Task AddRangeAsync(IEnumerable<Draw> draws, CancellationToken ct = default);
+    Task UpdateAsync(Draw draw, CancellationToken ct = default);
+    Task<Draw?> GetByGameAndDateAsync(Guid gameId, DateTime drawDate, CancellationToken ct = default);
     Task<Draw?> GetFirstOnOrAfterDateAsync(Guid gameId, DateTime date, CancellationToken ct = default);
 }

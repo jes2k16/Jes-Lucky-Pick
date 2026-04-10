@@ -26,21 +26,78 @@ import {
 import { UserFormDialog } from "@/features/admin/components/UserFormDialog";
 import { DeleteUserDialog } from "@/features/admin/components/DeleteUserDialog";
 import type { UserDto } from "@/types/api";
-import { Pencil, Trash2, Plus } from "lucide-react";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import { Pencil, Trash2, Plus, ArrowUp, ArrowDown } from "lucide-react";
 
 export function AdminPage() {
   const queryClient = useQueryClient();
   const [page, setPage] = useState(1);
-  const pageSize = 20;
+  const [pageSize, setPageSize] = useState(20);
 
   const [formOpen, setFormOpen] = useState(false);
   const [deleteOpen, setDeleteOpen] = useState(false);
   const [selectedUser, setSelectedUser] = useState<UserDto | null>(null);
 
+  const [filterRole, setFilterRole] = useState<"all" | "Admin" | "User">("all");
+  const [sortKey, setSortKey] = useState<"username" | "email" | "role" | null>(null);
+  const [sortDir, setSortDir] = useState<"asc" | "desc">("asc");
+
+  function handleSort(key: "username" | "email" | "role") {
+    if (sortKey === key) {
+      setSortDir((d) => (d === "asc" ? "desc" : "asc"));
+    } else {
+      setSortKey(key);
+      setSortDir("asc");
+    }
+  }
+
+  function SortIcon({ col }: { col: "username" | "email" | "role" }) {
+    if (sortKey !== col) return null;
+    return sortDir === "asc" ? (
+      <ArrowUp className="ml-1.5 h-3.5 w-3.5 text-foreground" />
+    ) : (
+      <ArrowDown className="ml-1.5 h-3.5 w-3.5 text-foreground" />
+    );
+  }
+
+  function SortableHead({ col, label }: { col: "username" | "email" | "role"; label: string }) {
+    return (
+      <TableHead onClick={() => handleSort(col)}>
+        <button
+          type="button"
+          className="flex items-center gap-0 cursor-pointer select-none whitespace-nowrap hover:text-foreground transition-colors w-full"
+        >
+          {label}
+          <SortIcon col={col} />
+        </button>
+      </TableHead>
+    );
+  }
+
   const { data, isLoading } = useQuery({
-    queryKey: ["admin-users", page],
+    queryKey: ["admin-users", page, pageSize],
     queryFn: () => fetchUsers(page, pageSize),
   });
+
+  const allItems = data?.items ?? [];
+  const filteredItems =
+    filterRole === "all" ? allItems : allItems.filter((u) => u.role === filterRole);
+  const sortedItems = sortKey
+    ? [...filteredItems].sort((a, b) => {
+        const field = sortKey;
+        const aVal = a[field].toLowerCase();
+        const bVal = b[field].toLowerCase();
+        if (aVal < bVal) return sortDir === "asc" ? -1 : 1;
+        if (aVal > bVal) return sortDir === "asc" ? 1 : -1;
+        return 0;
+      })
+    : filteredItems;
 
   const createMutation = useMutation({
     mutationFn: createUser,
@@ -121,17 +178,62 @@ export function AdminPage() {
             </div>
           ) : (
             <>
+              {/* Filter bar */}
+              <div className="flex flex-wrap items-center gap-2 mb-3">
+                <Button
+                  size="sm"
+                  variant={filterRole === "all" ? "default" : "outline"}
+                  onClick={() => { setFilterRole("all"); setPage(1); }}
+                >
+                  All
+                </Button>
+                <Button
+                  size="sm"
+                  variant={filterRole === "Admin" ? "default" : "outline"}
+                  onClick={() => { setFilterRole("Admin"); setPage(1); }}
+                >
+                  Admin
+                </Button>
+                <Button
+                  size="sm"
+                  variant={filterRole === "User" ? "default" : "outline"}
+                  onClick={() => { setFilterRole("User"); setPage(1); }}
+                >
+                  User
+                </Button>
+              </div>
+
+              <div className="flex justify-end mb-2">
+                <Select
+                  value={String(pageSize)}
+                  onValueChange={(v) => {
+                    setPageSize(Number(v));
+                    setPage(1);
+                  }}
+                >
+                  <SelectTrigger className="h-7 w-20 text-xs">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {[20, 50, 100].map((s) => (
+                      <SelectItem key={s} value={String(s)} className="text-xs">
+                        {s} / page
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
               <Table>
                 <TableHeader>
                   <TableRow>
-                    <TableHead>Username</TableHead>
-                    <TableHead>Email</TableHead>
-                    <TableHead>Role</TableHead>
+                    <SortableHead col="username" label="Username" />
+                    <SortableHead col="email" label="Email" />
+                    <SortableHead col="role" label="Role" />
                     <TableHead className="w-[100px]">Actions</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {data?.items.map((user) => (
+                  {sortedItems.map((user) => (
                     <TableRow key={user.id}>
                       <TableCell className="font-medium">
                         {user.username}
@@ -166,7 +268,7 @@ export function AdminPage() {
                       </TableCell>
                     </TableRow>
                   ))}
-                  {data?.items.length === 0 && (
+                  {sortedItems.length === 0 && (
                     <TableRow>
                       <TableCell colSpan={4} className="text-center text-muted-foreground">
                         No users found.

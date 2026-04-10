@@ -1,3 +1,5 @@
+using Hangfire;
+using Hangfire.PostgreSql;
 using JesLuckyPick.Application.Common.Interfaces;
 using JesLuckyPick.Domain.Interfaces;
 using JesLuckyPick.Infrastructure.AI.Services;
@@ -7,6 +9,7 @@ using JesLuckyPick.Infrastructure.Persistence;
 using JesLuckyPick.Infrastructure.Persistence.Repositories;
 using JesLuckyPick.Infrastructure.Persistence.Seeding;
 using JesLuckyPick.Infrastructure.Security;
+using JesLuckyPick.Infrastructure.Training;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
@@ -28,6 +31,7 @@ public static class DependencyInjection
         services.AddScoped<IAppSettingRepository, AppSettingRepository>();
         services.AddScoped<ITrainingSessionRepository, TrainingSessionRepository>();
         services.AddScoped<IExpertCareerRepository, ExpertCareerRepository>();
+        services.AddScoped<ITrainingScheduleRepository, TrainingScheduleRepository>();
 
         services.AddSingleton<IPasswordHasher, Argon2PasswordHasher>();
         services.AddSingleton<ITokenService, JwtTokenService>();
@@ -36,6 +40,20 @@ public static class DependencyInjection
         services.AddScoped<DatabaseSeeder>();
         services.AddScoped<PredictionOrchestratorService>();
         services.AddHttpClient<IDrawFetchService, PcsoDrawFetchService>();
+
+        // Hangfire — use the same PostgreSQL connection string
+        var connStr = configuration.GetConnectionString("DefaultConnection")!;
+        services.AddHangfire(config => config
+            .SetDataCompatibilityLevel(CompatibilityLevel.Version_180)
+            .UseSimpleAssemblyNameTypeSerializer()
+            .UseRecommendedSerializerSettings()
+            .UsePostgreSqlStorage(options => options.UseNpgsqlConnection(connStr)));
+        services.AddHangfireServer();
+
+        // Training schedule services
+        services.AddScoped<GameSimulatorService>();
+        services.AddScoped<ScheduledTrainingJob>();
+        services.AddScoped<TrainingSchedulerService>();
 
         return services;
     }

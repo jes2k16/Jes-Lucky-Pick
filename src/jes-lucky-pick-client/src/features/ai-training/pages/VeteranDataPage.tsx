@@ -151,15 +151,15 @@ function SortIcon({
 // ── Component ──
 
 export function VeteranDataPage() {
-  const { registry, updateCareer, deduplicateRegistry } = useExpertRegistry();
+  const { registry, updateCareer, deleteCareer, deduplicateRegistry } = useExpertRegistry();
 
   // Filters
   const [filterFavorite, setFilterFavorite] = useState<"all" | "favorites">("all");
   const [personalityFilter, setPersonalityFilter] = useState<ExpertPersonality | "all">("all");
 
-  // Sort — resets on refresh (no persistence intentional)
-  const [sortKey, setSortKey] = useState<SortKey | null>(null);
-  const [sortDir, setSortDir] = useState<SortDir>("asc");
+  // Sort — default by win rate descending
+  const [sortKey, setSortKey] = useState<SortKey | null>("winRate");
+  const [sortDir, setSortDir] = useState<SortDir>("desc");
 
   // Pagination
   const [page, setPage] = useState(0);
@@ -172,8 +172,8 @@ export function VeteranDataPage() {
   // Refresh — resets sort & pagination, forces re-read from state
   const [refreshKey, setRefreshKey] = useState(0);
   const handleRefresh = useCallback(() => {
-    setSortKey(null);
-    setSortDir("asc");
+    setSortKey("winRate");
+    setSortDir("desc");
     setPage(0);
     setRefreshKey((k) => k + 1);
   }, []);
@@ -345,6 +345,26 @@ export function VeteranDataPage() {
         </div>
       ) : (
         <>
+          <div className="flex justify-end">
+            <Select
+              value={String(pageSize)}
+              onValueChange={(v) => {
+                setPageSize(Number(v));
+                setPage(0);
+              }}
+            >
+              <SelectTrigger className="h-7 w-20 text-xs">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {PAGE_SIZES.map((size) => (
+                  <SelectItem key={size} value={String(size)}>
+                    {size}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
           <div className="rounded-md border">
             <Table>
               <TableHeader>
@@ -415,36 +435,11 @@ export function VeteranDataPage() {
           </div>
 
           {/* Pagination footer */}
-          <div className="flex items-center justify-between">
+          <div className="flex items-center justify-end gap-2">
+            <span className="text-xs text-muted-foreground">
+              {sorted.length} total · Page {safePage + 1} of {totalPages}
+            </span>
             <div className="flex items-center gap-2">
-              <span className="text-xs text-muted-foreground">Rows per page</span>
-              <Select
-                value={String(pageSize)}
-                onValueChange={(v) => {
-                  setPageSize(Number(v));
-                  setPage(0);
-                }}
-              >
-                <SelectTrigger className="h-7 w-20 text-xs">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  {PAGE_SIZES.map((size) => (
-                    <SelectItem key={size} value={String(size)}>
-                      {size}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-              <span className="text-xs text-muted-foreground">
-                {sorted.length} total
-              </span>
-            </div>
-
-            <div className="flex items-center gap-2">
-              <span className="text-xs text-muted-foreground">
-                Page {safePage + 1} of {totalPages}
-              </span>
               <Button
                 variant="outline"
                 size="sm"
@@ -465,6 +460,7 @@ export function VeteranDataPage() {
               </Button>
             </div>
           </div>
+
         </>
       )}
 
@@ -472,6 +468,7 @@ export function VeteranDataPage() {
         open={modalOpen}
         onOpenChange={setModalOpen}
         careerId={selectedCareerId}
+        onDelete={deleteCareer}
       />
     </div>
   );

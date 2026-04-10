@@ -88,12 +88,26 @@ public static class DrawEndpoints
         {
             try
             {
-                var newDraws = await drawFetchService.FetchLatestDrawsAsync(gameCode);
-                if (newDraws.Count == 0)
-                    return Results.Ok(new { added = 0, message = "No new draws found." });
+                var result = await drawFetchService.FetchLatestDrawsAsync(gameCode);
 
-                await drawRepo2.AddRangeAsync(newDraws);
-                return Results.Ok(new { added = newDraws.Count, message = $"{newDraws.Count} new draw(s) added." });
+                if (result.Added.Count > 0)
+                    await drawRepo2.AddRangeAsync(result.Added);
+
+                if (result.Added.Count == 0 && result.Updated.Count == 0)
+                    return Results.Ok(new { added = 0, updated = 0, message = "All draws are up to date." });
+
+                var parts = new List<string>();
+                if (result.Added.Count > 0)
+                    parts.Add($"{result.Added.Count} new draw(s) added");
+                if (result.Updated.Count > 0)
+                    parts.Add($"{result.Updated.Count} existing draw(s) updated");
+
+                return Results.Ok(new
+                {
+                    added = result.Added.Count,
+                    updated = result.Updated.Count,
+                    message = string.Join(", ", parts) + "."
+                });
             }
             catch (InvalidOperationException ex)
             {
