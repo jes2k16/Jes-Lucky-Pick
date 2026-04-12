@@ -6,16 +6,23 @@ using JesLuckyPick.Infrastructure.Persistence;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.SignalR;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Configuration;
 
 namespace JesLuckyPick.Api.Hubs;
 
 [Authorize(Roles = "Admin")]
-public class GameHub : Hub
+public class GameHub(IConfiguration configuration) : Hub
 {
     private static readonly ConcurrentDictionary<string, CancellationTokenSource> ActiveGames = new();
 
-    private static string ResolveClaudePath()
+    private string ResolveClaudePath()
     {
+        // Trust the configured path without File.Exists() — IIS app pool identity
+        // may lack permissions to stat files under another user's profile.
+        var configured = configuration["Ai:ClaudePath"];
+        if (!string.IsNullOrWhiteSpace(configured))
+            return configured;
+
         if (OperatingSystem.IsWindows())
         {
             // npm global install (classic)

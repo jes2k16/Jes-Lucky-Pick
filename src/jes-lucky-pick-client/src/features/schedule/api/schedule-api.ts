@@ -2,11 +2,14 @@ import apiClient from "@/lib/api-client";
 
 // ── Types ──────────────────────────────────────────────────────────────────
 
+export type FrequencyType = "daily" | "weekly" | "interval";
+
 export interface ScheduleConfig {
   id: string;
   isEnabled: boolean;
-  frequencyType: "daily" | "weekly";
+  frequencyType: FrequencyType;
   daysOfWeekMask: number; // Mon=1, Tue=2, Wed=4, Thu=8, Fri=16, Sat=32, Sun=64
+  intervalMinutes: number;
   timeSlots: string[]; // UTC HH:mm strings
   gameSettingsJson: string;
   updatedAtUtc: string;
@@ -14,8 +17,9 @@ export interface ScheduleConfig {
 
 export interface SaveSchedulePayload {
   isEnabled: boolean;
-  frequencyType: "daily" | "weekly";
+  frequencyType: FrequencyType;
   daysOfWeekMask: number;
+  intervalMinutes: number;
   timeSlots: string[]; // UTC HH:mm strings
   gameSettingsJson: string;
 }

@@ -28,6 +28,12 @@ public class TrainingSchedulerService(IRecurringJobManager jobManager)
 
         if (!schedule.IsEnabled) return;
 
+        if (schedule.FrequencyType == "interval")
+        {
+            ApplyInterval(schedule);
+            return;
+        }
+
         string[] slots;
         try
         {
@@ -50,6 +56,26 @@ public class TrainingSchedulerService(IRecurringJobManager jobManager)
             var jobId = $"{JobPrefix}-{schedule.Id}-{slot.Replace(":", "")}";
             jobManager.AddOrUpdate<ScheduledTrainingJob>(jobId, j => j.RunAsync(), cron);
         }
+    }
+
+    private void ApplyInterval(TrainingSchedule schedule)
+    {
+        var minutes = schedule.IntervalMinutes;
+        if (minutes <= 0) return;
+
+        string cron;
+        if (minutes < 60)
+        {
+            cron = $"*/{minutes} * * * *";
+        }
+        else
+        {
+            var hours = minutes / 60;
+            cron = $"0 */{hours} * * *";
+        }
+
+        var jobId = $"{JobPrefix}-{schedule.Id}-interval";
+        jobManager.AddOrUpdate<ScheduledTrainingJob>(jobId, j => j.RunAsync(), cron);
     }
 
     public void RemoveAll(Guid scheduleId) => RemoveAllJobs(scheduleId);

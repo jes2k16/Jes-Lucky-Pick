@@ -71,6 +71,7 @@ if (app.Environment.IsDevelopment())
 }
 
 app.UseMiddleware<ExceptionHandlingMiddleware>();
+app.UseStaticFiles();
 
 app.UseHangfireDashboard("/hangfire", new DashboardOptions
 {
@@ -93,6 +94,7 @@ app.MapHub<GameHub>("/hubs/game");
 app.MapAgentPromptEndpoints();
 app.MapTrainingEndpoints();
 app.MapScheduleEndpoints();
+app.MapFallbackToFile("index.html");
 
 // Reload saved schedule into Hangfire on startup (survives app restarts)
 using (var startupScope = app.Services.CreateScope())

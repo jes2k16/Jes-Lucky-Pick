@@ -70,6 +70,7 @@ public static class ScheduleEndpoints
             IsEnabled = request.IsEnabled,
             FrequencyType = request.FrequencyType,
             DaysOfWeekMask = request.DaysOfWeekMask,
+            IntervalMinutes = request.IntervalMinutes,
             TimeSlotsJson = JsonSerializer.Serialize(request.TimeSlots),
             GameSettingsJson = request.GameSettingsJson,
         };
@@ -94,7 +95,7 @@ public static class ScheduleEndpoints
 
         return new ScheduleResponse(
             s.Id, s.IsEnabled, s.FrequencyType,
-            s.DaysOfWeekMask, slots,
+            s.DaysOfWeekMask, s.IntervalMinutes, slots,
             s.GameSettingsJson, s.UpdatedAtUtc);
     }
 }
@@ -103,6 +104,7 @@ public record SaveScheduleRequest(
     bool IsEnabled,
     string FrequencyType,
     int DaysOfWeekMask,
+    int IntervalMinutes,
     string[] TimeSlots,
     string GameSettingsJson);
 
@@ -111,6 +113,7 @@ public record ScheduleResponse(
     bool IsEnabled,
     string FrequencyType,
     int DaysOfWeekMask,
+    int IntervalMinutes,
     string[] TimeSlots,
     string GameSettingsJson,
     DateTime UpdatedAtUtc);

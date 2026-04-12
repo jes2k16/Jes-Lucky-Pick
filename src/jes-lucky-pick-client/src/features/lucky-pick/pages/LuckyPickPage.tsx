@@ -58,6 +58,7 @@ import {
 } from "@/features/ai-training/hooks/useExpertRegistry";
 import { executeStrategy } from "@/features/ai-training/utils/strategies";
 import type { GameScheduleDto, PredictionResponse } from "@/types/api";
+import { DEFAULT_SETTINGS } from "@/features/ai-training/types/game";
 import type {
   ExpertPersonality,
   GameSettings,
@@ -85,18 +86,9 @@ const AI_MODELS = [
 ];
 
 const MINIMAL_SETTINGS: GameSettings = {
-  lottoGame: "6/42",
-  numberRangeMin: 1,
-  numberRangeMax: 42,
-  combinationSize: 6,
+  ...DEFAULT_SETTINGS,
   managerCount: 1,
   expertsPerManager: 1,
-  timeLimitMinutes: 5,
-  simulationSpeedMs: 500,
-  gameMode: "simulation",
-  concurrencyMode: "fully-parallel",
-  model: "claude-haiku-4-5-20251001",
-  useVeterans: false,
 };
 
 // ── Helpers ──

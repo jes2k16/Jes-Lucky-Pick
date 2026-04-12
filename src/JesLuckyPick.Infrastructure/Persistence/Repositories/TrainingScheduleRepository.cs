@@ -24,6 +24,7 @@ public class TrainingScheduleRepository(AppDbContext context) : ITrainingSchedul
             existing.IsEnabled = schedule.IsEnabled;
             existing.FrequencyType = schedule.FrequencyType;
             existing.DaysOfWeekMask = schedule.DaysOfWeekMask;
+            existing.IntervalMinutes = schedule.IntervalMinutes;
             existing.TimeSlotsJson = schedule.TimeSlotsJson;
             existing.GameSettingsJson = schedule.GameSettingsJson;
             existing.UpdatedAtUtc = DateTime.UtcNow;

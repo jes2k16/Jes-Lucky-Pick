@@ -1,4 +1,5 @@
 import { useState, useRef, useCallback, useEffect } from "react";
+import { DEFAULT_SETTINGS } from "../types/game";
 import type {
   GameState,
   GameSettings,
@@ -246,18 +247,8 @@ function addLog(
 export function useGameEngine(): GameEngine {
   const [gameState, setGameState] = useState<GameState>(() =>
     createInitialState({
-      lottoGame: "6/42",
-      numberRangeMin: 1,
-      numberRangeMax: 42,
-      combinationSize: 6,
-      managerCount: 3,
-      expertsPerManager: 4,
-      timeLimitMinutes: 5,
-      simulationSpeedMs: 500,
-      gameMode: "simulation",
+      ...DEFAULT_SETTINGS,
       concurrencyMode: "sequential",
-      model: "claude-haiku-4-5-20251001",
-      useVeterans: false,
     })
   );
 

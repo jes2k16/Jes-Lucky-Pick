@@ -14,6 +14,7 @@ import {
 import { ScheduleHistoryGrid } from "../components/ScheduleHistoryGrid";
 import { fetchDraws } from "@/features/history/api/drawsApi";
 import { useTrainingSessionStore } from "@/stores/trainingSessionStore";
+import { DEFAULT_SETTINGS } from "@/features/ai-training/types/game";
 import type { GameSettings } from "@/features/ai-training/types/game";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -34,6 +35,21 @@ const DAYS = [
   { label: "Sun", bit: 64 },
 ] as const;
 
+const INTERVAL_OPTIONS = [
+  { label: "5 min", minutes: 5 },
+  { label: "10 min", minutes: 10 },
+  { label: "15 min", minutes: 15 },
+  { label: "20 min", minutes: 20 },
+  { label: "30 min", minutes: 30 },
+  { label: "1 hr", minutes: 60 },
+  { label: "2 hr", minutes: 120 },
+  { label: "3 hr", minutes: 180 },
+  { label: "4 hr", minutes: 240 },
+  { label: "6 hr", minutes: 360 },
+  { label: "8 hr", minutes: 480 },
+  { label: "12 hr", minutes: 720 },
+] as const;
+
 // ── Zod schema ─────────────────────────────────────────────────────────────
 
 const timeSlotSchema = z.object({
@@ -43,9 +59,10 @@ const timeSlotSchema = z.object({
 const scheduleSchema = z
   .object({
     isEnabled: z.boolean(),
-    frequencyType: z.enum(["daily", "weekly"]),
+    frequencyType: z.enum(["daily", "weekly", "interval"]),
     daysOfWeekMask: z.number().int(),
-    timeSlots: z.array(timeSlotSchema).min(1, "At least one time slot is required"),
+    intervalMinutes: z.number().int().min(0),
+    timeSlots: z.array(timeSlotSchema),
     managerCount: z.number().int().min(1).max(10),
     expertsPerManager: z.number().int().min(1).max(8),
     timeLimitMinutes: z.number().int().min(1).max(30),
@@ -57,6 +74,21 @@ const scheduleSchema = z
         code: z.ZodIssueCode.custom,
         message: "Select at least one day for weekly schedule",
         path: ["daysOfWeekMask"],
+      });
+    }
+    if (data.frequencyType === "interval") {
+      if (data.intervalMinutes <= 0) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          message: "Select an interval",
+          path: ["intervalMinutes"],
+        });
+      }
+    } else if (data.timeSlots.length === 0) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: "At least one time slot is required",
+        path: ["timeSlots"],
       });
     }
   });
@@ -95,16 +127,19 @@ export function TrainingSchedulePage() {
         isEnabled: false,
         frequencyType: "daily",
         daysOfWeekMask: 0,
+        intervalMinutes: 0,
         timeSlots: [{ time: "00:00" }],
         ...defaultGameSettings,
       };
     }
     const gs = parseGameSettings(schedule.gameSettingsJson);
+    const localSlots = schedule.timeSlots.map((utc) => ({ time: utcToLocalTime(utc) }));
     return {
       isEnabled: schedule.isEnabled,
       frequencyType: schedule.frequencyType,
       daysOfWeekMask: schedule.daysOfWeekMask,
-      timeSlots: schedule.timeSlots.map((utc) => ({ time: utcToLocalTime(utc) })),
+      intervalMinutes: schedule.intervalMinutes ?? 0,
+      timeSlots: localSlots.length > 0 ? localSlots : [{ time: "00:00" }],
       managerCount: gs.managerCount ?? defaultGameSettings.managerCount,
       expertsPerManager: gs.expertsPerManager ?? defaultGameSettings.expertsPerManager,
       timeLimitMinutes: gs.timeLimitMinutes ?? defaultGameSettings.timeLimitMinutes,
@@ -129,11 +164,23 @@ export function TrainingSchedulePage() {
   const { fields, append, remove } = useFieldArray({ control, name: "timeSlots" });
   const frequencyType = watch("frequencyType");
   const daysOfWeekMask = watch("daysOfWeekMask");
+  const intervalMinutes = watch("intervalMinutes");
   const isEnabled = watch("isEnabled");
   const useVeterans = watch("useVeterans");
 
   const toggleDay = (bit: number) => {
     setValue("daysOfWeekMask", daysOfWeekMask ^ bit, { shouldValidate: true });
+  };
+
+  const selectFrequency = (f: "daily" | "weekly" | "interval") => {
+    setValue("frequencyType", f, { shouldValidate: true });
+    if (f !== "interval" && fields.length === 0) {
+      append({ time: "08:00" });
+    }
+  };
+
+  const selectInterval = (minutes: number) => {
+    setValue("intervalMinutes", minutes, { shouldValidate: true });
   };
 
   const saveMutation = useMutation({
@@ -152,7 +199,11 @@ export function TrainingSchedulePage() {
         isEnabled: values.isEnabled,
         frequencyType: values.frequencyType,
         daysOfWeekMask: values.daysOfWeekMask,
-        timeSlots: values.timeSlots.map((s) => localToUtcTime(s.time)),
+        intervalMinutes: values.frequencyType === "interval" ? values.intervalMinutes : 0,
+        timeSlots:
+          values.frequencyType === "interval"
+            ? []
+            : values.timeSlots.map((s) => localToUtcTime(s.time)),
         gameSettingsJson,
       });
     },
@@ -195,7 +246,7 @@ export function TrainingSchedulePage() {
         managerCount: values.managerCount,
         expertsPerManager: values.expertsPerManager,
         timeLimitMinutes: values.timeLimitMinutes,
-        simulationSpeedMs: 200,
+        simulationSpeedMs: DEFAULT_SETTINGS.simulationSpeedMs,
         gameMode: "scheduled",
         concurrencyMode: "fully-parallel",
         model: "claude-sonnet-4-6",
@@ -256,11 +307,11 @@ export function TrainingSchedulePage() {
               </CardHeader>
               <CardContent className="px-4 pb-4 space-y-3">
                 <div className="flex gap-3">
-                  {(["daily", "weekly"] as const).map((f) => (
+                  {(["daily", "weekly", "interval"] as const).map((f) => (
                     <button
                       key={f}
                       type="button"
-                      onClick={() => setValue("frequencyType", f)}
+                      onClick={() => selectFrequency(f)}
                       className={`flex-1 rounded-md border py-2 text-sm capitalize transition-colors ${
                         frequencyType === f
                           ? "border-primary bg-primary text-primary-foreground"
@@ -271,6 +322,31 @@ export function TrainingSchedulePage() {
                     </button>
                   ))}
                 </div>
+
+                {frequencyType === "interval" && (
+                  <div className="space-y-1.5">
+                    <Label className="text-xs text-muted-foreground">Run every</Label>
+                    <div className="grid grid-cols-4 gap-1.5">
+                      {INTERVAL_OPTIONS.map(({ label, minutes }) => (
+                        <button
+                          key={minutes}
+                          type="button"
+                          onClick={() => selectInterval(minutes)}
+                          className={`rounded-md border py-1.5 text-xs font-medium transition-colors ${
+                            intervalMinutes === minutes
+                              ? "border-primary bg-primary text-primary-foreground"
+                              : "border-border bg-card hover:bg-accent"
+                          }`}
+                        >
+                          {label}
+                        </button>
+                      ))}
+                    </div>
+                    {errors.intervalMinutes && (
+                      <p className="text-xs text-destructive">{errors.intervalMinutes.message}</p>
+                    )}
+                  </div>
+                )}
 
                 {frequencyType === "weekly" && (
                   <div className="space-y-1.5">
@@ -300,6 +376,7 @@ export function TrainingSchedulePage() {
             </Card>
 
             {/* Time slots */}
+            {frequencyType !== "interval" && (
             <Card>
               <CardHeader className="pb-2 pt-4 px-4">
                 <div className="flex items-center justify-between">
@@ -346,6 +423,7 @@ export function TrainingSchedulePage() {
                 )}
               </CardContent>
             </Card>
+            )}
 
             {/* Game settings */}
             <Card>

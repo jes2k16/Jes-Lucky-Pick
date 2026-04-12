@@ -15,7 +15,26 @@
       "Bash(mkdir -p \"d:/CLAUDE/Jes-Lucky-Pick/plans\")",
       "Bash(mv \"d:/CLAUDE/Jes-Lucky-Pick/expert-learning-plan.md\" \"d:/CLAUDE/Jes-Lucky-Pick/plans/\")",
       "Bash(mv \"d:/CLAUDE/Jes-Lucky-Pick/number-training-game-plan.md\" \"d:/CLAUDE/Jes-Lucky-Pick/plans/\")",
-      "Bash(docker-compose up:*)"
+      "Bash(docker-compose up:*)",
+      "Bash(npm ci:*)",
+      "Read(//c/Users/jmendones/AppData/Roaming/npm/**)",
+      "Bash(npm run:*)",
+      "WebFetch(domain:github.com)",
+      "Bash(pip install:*)",
+      "Bash(py --version)",
+      "Bash(py3 --version)",
+      "Bash(where python:*)",
+      "Bash(where py:*)",
+      "Bash(/c/Users/jmendones/AppData/Local/Programs/Python/Python314/python.exe -c 'import graphify; print\\('\\\\''graphify ok'\\\\''\\)')",
+      "Bash(/c/Users/jmendones/AppData/Local/Programs/Python/Python314/python.exe -c 'import sys; open\\('\\\\''.graphify_python'\\\\'', '\\\\''w'\\\\''\\).write\\(sys.executable\\)')",
+      "Bash(/c/Users/jmendones/AppData/Local/Programs/Python/Python314/python.exe -c ':*)",
+      "Bash(echo \"exit: $?\")",
+      "Bash(powershell -Command \"Remove-Item -Path 'src/JesLuckyPick.Api/wwwroot' -Recurse -Force -ErrorAction SilentlyContinue; New-Item -ItemType Directory -Path 'src/JesLuckyPick.Api/wwwroot' -Force | Out-Null; Copy-Item -Path 'src/jes-lucky-pick-client/dist/*' -Destination 'src/JesLuckyPick.Api/wwwroot/' -Recurse -Force; Write-Host 'wwwroot updated'\")",
+      "Bash(dotnet publish:*)",
+      "Bash(powershell -Command \"New-Item -ItemType Directory -Path 'C:\\\\inetpub\\\\JesLuckyPick' -Force | Out-Null; Copy-Item -Path '.\\\\publish\\\\*' -Destination 'C:\\\\inetpub\\\\JesLuckyPick' -Recurse -Force; Write-Host 'Deployment complete to C:\\\\inetpub\\\\JesLuckyPick'\")",
+      "Bash(powershell -Command \"Get-ChildItem 'C:\\\\inetpub\\\\JesLuckyPick' | Select-Object Name, LastWriteTime | Sort-Object LastWriteTime -Descending | Select-Object -First 20 | Format-Table -AutoSize; Write-Host ''; \\(Get-ChildItem -Path 'C:\\\\inetpub\\\\JesLuckyPick' -Recurse | Measure-Object\\).Count + ' files deployed'\")",
+      "Bash(powershell -Command ':*)",
+      "Bash(powershell -Command \"\\([Security.Principal.WindowsPrincipal][Security.Principal.WindowsIdentity]::GetCurrent\\(\\)\\).IsInRole\\([Security.Principal.WindowsBuiltInRole]::Administrator\\)\")"
     ]
   }
 }

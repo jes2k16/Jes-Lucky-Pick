@@ -5,6 +5,7 @@ import {
   LogLevel,
 } from "@microsoft/signalr";
 import { getAccessToken } from "@/lib/api-client";
+import { DEFAULT_SETTINGS } from "../types/game";
 import type {
   GameState,
   GameSettings,
@@ -247,18 +248,8 @@ function addLog(
 export function useAiGameEngine(): GameEngine {
   const [gameState, setGameState] = useState<GameState>(() =>
     createInitialState({
-      lottoGame: "6/42",
-      numberRangeMin: 1,
-      numberRangeMax: 42,
-      combinationSize: 6,
-      managerCount: 3,
-      expertsPerManager: 4,
-      timeLimitMinutes: 5,
-      simulationSpeedMs: 500,
+      ...DEFAULT_SETTINGS,
       gameMode: "ai-agent",
-      concurrencyMode: "fully-parallel",
-      model: "claude-haiku-4-5-20251001",
-      useVeterans: false,
     })
   );
 
@@ -400,7 +391,8 @@ export function useAiGameEngine(): GameEngine {
         for (let tryNum = 1; tryNum <= 6; tryNum++) {
           if (cancelledRef.current) return;
 
-          // No artificial delay in AI mode — CLI latency provides natural pacing
+          // Pace AI rounds at the same speed as simulation
+          await new Promise((r) => setTimeout(r, settings.simulationSpeedMs));
 
           // Wait while paused
           while (!runningRef.current && !cancelledRef.current) {
@@ -641,7 +633,8 @@ export function useAiGameEngine(): GameEngine {
           for (let tryNum = 1; tryNum <= 6; tryNum++) {
             if (cancelledRef.current) break;
 
-            // No artificial delay in AI mode — CLI latency provides natural pacing
+            // Pace AI rounds at the same speed as simulation
+            await new Promise((r) => setTimeout(r, settings.simulationSpeedMs));
 
             // Wait while paused
             while (!runningRef.current && !cancelledRef.current) {

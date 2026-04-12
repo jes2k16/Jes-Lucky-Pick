@@ -464,6 +464,9 @@ namespace JesLuckyPick.Infrastructure.Migrations
                         .IsRequired()
                         .HasColumnType("jsonb");
 
+                    b.Property<int>("IntervalMinutes")
+                        .HasColumnType("integer");
+
                     b.Property<bool>("IsEnabled")
                         .HasColumnType("boolean");
 

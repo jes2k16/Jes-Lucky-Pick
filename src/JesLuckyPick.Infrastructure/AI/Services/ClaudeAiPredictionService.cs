@@ -4,19 +4,24 @@ using JesLuckyPick.Application.Common.Interfaces;
 using JesLuckyPick.Application.Features.Predictions.DTOs;
 using JesLuckyPick.Domain.Entities;
 using JesLuckyPick.Domain.Interfaces;
+using Microsoft.Extensions.Configuration;
 
 namespace JesLuckyPick.Infrastructure.AI.Services;
 
-public class ClaudeAiPredictionService(IAppSettingRepository settingRepo) : IAiPredictionService
+public class ClaudeAiPredictionService(IAppSettingRepository settingRepo, IConfiguration configuration) : IAiPredictionService
 {
     private const string KeyModel = "Ai:Model";
     private const string KeyIsEnabled = "Ai:IsEnabled";
     private const string DefaultModel = "claude-sonnet-4-20250514";
 
-    private static readonly Lazy<string> ClaudePath = new(FindClaudeCli);
-
-    private static string FindClaudeCli()
+    private string ResolveClaudePath()
     {
+        // Trust the configured path without File.Exists() — IIS app pool identity
+        // may lack permissions to stat files under another user's profile.
+        var configured = configuration["Ai:ClaudePath"];
+        if (!string.IsNullOrWhiteSpace(configured))
+            return configured;
+
         if (OperatingSystem.IsWindows())
         {
             // Check npm global install location
@@ -33,11 +38,11 @@ public class ClaudeAiPredictionService(IAppSettingRepository settingRepo) : IAiP
         return "claude";
     }
 
-    private static ProcessStartInfo CreateClaudeStartInfo(params string[] args)
+    private ProcessStartInfo CreateClaudeStartInfo(params string[] args)
     {
         var psi = new ProcessStartInfo
         {
-            FileName = ClaudePath.Value,
+            FileName = ResolveClaudePath(),
             RedirectStandardOutput = true,
             RedirectStandardError = true,
             UseShellExecute = false,

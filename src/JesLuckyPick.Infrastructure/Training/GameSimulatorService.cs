@@ -1,4 +1,3 @@
-using System.Diagnostics;
 using System.Text.Json;
 
 namespace JesLuckyPick.Infrastructure.Training;
@@ -12,14 +11,19 @@ public class GameSimulatorService
 {
     private static readonly Random Rng = new();
 
+    // Mirrors DEFAULT_SETTINGS.simulationSpeedMs in
+    // src/jes-lucky-pick-client/src/features/ai-training/types/game.ts
+    private const int DefaultSimulationSpeedMs = 500;
+
     // ── Public entry point ────────────────────────────────────────────────────
 
     public SimulationResult RunSimulation(ScheduledGameSettings settings, int[][] historicalDraws)
     {
-        var stopwatch = Stopwatch.StartNew();
         var managers = CreateManagers(settings, historicalDraws);
         int currentRound = 1;
-        const int maxRounds = 20;
+        var timeLimitMinutes = settings.TimeLimitMinutes > 0 ? settings.TimeLimitMinutes : 1;
+        var maxRounds = timeLimitMinutes * 60 * 1000 / DefaultSimulationSpeedMs / 6;
+        if (maxRounds < 1) maxRounds = 1;
 
         while (currentRound <= maxRounds)
         {
@@ -59,12 +63,13 @@ public class GameSimulatorService
                                 totalTries = expert.TryHistory.Count
                             });
 
+                            var winnerTicks = (currentRound - 1) * 6 + tryNum;
                             return new SimulationResult(
                                 Result: "winner_found",
                                 TotalRounds: currentRound,
                                 TotalExperts: managers.Sum(m => m.Experts.Length),
                                 SurvivingExperts: managers.SelectMany(m => m.Experts).Count(e => e.Status == "active" || e.Status == "winner"),
-                                DurationSeconds: Math.Max(1, (int)stopwatch.Elapsed.TotalSeconds),
+                                DurationSeconds: Math.Max(1, winnerTicks * DefaultSimulationSpeedMs / 1000),
                                 WinnerJson: winnerJson,
                                 LeaderboardJson: BuildLeaderboard(managers),
                                 SettingsJson: JsonSerializer.Serialize(settings)
@@ -105,7 +110,7 @@ public class GameSimulatorService
                     TotalRounds: currentRound,
                     TotalExperts: managers.Sum(m => m.Experts.Length),
                     SurvivingExperts: 0,
-                    DurationSeconds: Math.Max(1, (int)stopwatch.Elapsed.TotalSeconds),
+                    DurationSeconds: Math.Max(1, currentRound * 6 * DefaultSimulationSpeedMs / 1000),
                     WinnerJson: null,
                     LeaderboardJson: BuildLeaderboard(managers),
                     SettingsJson: JsonSerializer.Serialize(settings)
@@ -120,7 +125,7 @@ public class GameSimulatorService
             TotalRounds: currentRound - 1,
             TotalExperts: managers.Sum(m => m.Experts.Length),
             SurvivingExperts: managers.SelectMany(m => m.Experts).Count(e => e.Status == "active"),
-            DurationSeconds: Math.Max(1, (int)stopwatch.Elapsed.TotalSeconds),
+            DurationSeconds: timeLimitMinutes * 60,
             WinnerJson: null,
             LeaderboardJson: BuildLeaderboard(managers),
             SettingsJson: JsonSerializer.Serialize(settings)

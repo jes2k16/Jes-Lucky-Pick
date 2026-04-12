@@ -2,11 +2,12 @@ using System.Collections.Concurrent;
 using System.Diagnostics;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.SignalR;
+using Microsoft.Extensions.Configuration;
 
 namespace JesLuckyPick.Api.Hubs;
 
 [Authorize(Roles = "Admin")]
-public class TerminalHub : Hub
+public class TerminalHub(IConfiguration configuration) : Hub
 {
     private static readonly ConcurrentDictionary<string, Process> RunningProcesses = new();
 
@@ -15,8 +16,12 @@ public class TerminalHub : Hub
 
     private static readonly char[] ForbiddenChars = [';', '|', '&', '`', '$', '>', '<'];
 
-    private static string ResolveClaudePath()
+    private string ResolveClaudePath()
     {
+        var configured = configuration["Ai:ClaudePath"];
+        if (!string.IsNullOrWhiteSpace(configured) && File.Exists(configured))
+            return configured;
+
         if (OperatingSystem.IsWindows())
         {
             var appData = Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData);
