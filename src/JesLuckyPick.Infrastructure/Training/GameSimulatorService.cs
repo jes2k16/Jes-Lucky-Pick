@@ -17,9 +17,12 @@ public class GameSimulatorService
 
     // ── Public entry point ────────────────────────────────────────────────────
 
-    public SimulationResult RunSimulation(ScheduledGameSettings settings, int[][] historicalDraws)
+    public SimulationResult RunSimulation(
+        ScheduledGameSettings settings,
+        int[][] historicalDraws,
+        IReadOnlyList<VeteranSeed>? veteranSeeds = null)
     {
-        var managers = CreateManagers(settings, historicalDraws);
+        var managers = CreateManagers(settings, historicalDraws, veteranSeeds);
         int currentRound = 1;
         var timeLimitMinutes = settings.TimeLimitMinutes > 0 ? settings.TimeLimitMinutes : 1;
         var maxRounds = timeLimitMinutes * 60 * 1000 / DefaultSimulationSpeedMs / 6;
@@ -72,7 +75,8 @@ public class GameSimulatorService
                                 DurationSeconds: Math.Max(1, winnerTicks * DefaultSimulationSpeedMs / 1000),
                                 WinnerJson: winnerJson,
                                 LeaderboardJson: BuildLeaderboard(managers),
-                                SettingsJson: JsonSerializer.Serialize(settings)
+                                SettingsJson: JsonSerializer.Serialize(settings),
+                                ExpertOutcomes: BuildOutcomes(managers)
                             );
                         }
                     }
@@ -87,7 +91,10 @@ public class GameSimulatorService
                 {
                     expert.RoundScores.Add(expert.CurrentRoundScore);
                     if (expert.CurrentRoundScore < 2)
+                    {
                         expert.Status = "eliminated";
+                        expert.EliminatedAtRound = currentRound;
+                    }
                 }
 
                 if (manager.Experts.All(e => e.Status != "active"))
@@ -113,7 +120,8 @@ public class GameSimulatorService
                     DurationSeconds: Math.Max(1, currentRound * 6 * DefaultSimulationSpeedMs / 1000),
                     WinnerJson: null,
                     LeaderboardJson: BuildLeaderboard(managers),
-                    SettingsJson: JsonSerializer.Serialize(settings)
+                    SettingsJson: JsonSerializer.Serialize(settings),
+                    ExpertOutcomes: BuildOutcomes(managers)
                 );
             }
 
@@ -128,13 +136,17 @@ public class GameSimulatorService
             DurationSeconds: timeLimitMinutes * 60,
             WinnerJson: null,
             LeaderboardJson: BuildLeaderboard(managers),
-            SettingsJson: JsonSerializer.Serialize(settings)
+            SettingsJson: JsonSerializer.Serialize(settings),
+            ExpertOutcomes: BuildOutcomes(managers)
         );
     }
 
     // ── Manager / Expert creation ─────────────────────────────────────────────
 
-    private static SimManager[] CreateManagers(ScheduledGameSettings settings, int[][] historicalDraws)
+    private static SimManager[] CreateManagers(
+        ScheduledGameSettings settings,
+        int[][] historicalDraws,
+        IReadOnlyList<VeteranSeed>? veteranSeeds)
     {
         var personalities = new[] { "Scanner", "Sticky", "Gambler", "Analyst" };
         var expertNames = new[]
@@ -144,6 +156,21 @@ public class GameSimulatorService
             "Mike","November","Oscar","Papa","Quebec","Romeo",
             "Sierra","Tango","Uniform","Victor","Whiskey","X-Ray"
         };
+
+        // Build per-personality veteran pool when useVeterans is on.
+        // Mirrors buildVeteranPool() in useGameEngine.ts — reusing existing
+        // names so UpdateExpertCareersAsync matches them to existing careers
+        // instead of registering fresh ones every scheduled run.
+        Dictionary<string, List<VeteranSeed>>? veteranPool = null;
+        if (settings.UseVeterans && veteranSeeds is { Count: > 0 })
+        {
+            veteranPool = personalities.ToDictionary(p => p, _ => new List<VeteranSeed>());
+            foreach (var seed in veteranSeeds.OrderBy(_ => Rng.Next()))
+            {
+                if (veteranPool.TryGetValue(seed.Personality, out var list))
+                    list.Add(seed);
+            }
+        }
 
         var usedSecrets = new HashSet<string>();
         var usedNames = new HashSet<string>();
@@ -158,18 +185,54 @@ public class GameSimulatorService
             for (int e = 0; e < settings.ExpertsPerManager; e++)
             {
                 var personality = personalities[e % personalities.Length];
+                string name = string.Empty;
+                VeteranSeed? veteranMatch = null;
 
-                string name;
-                do
+                if (veteranPool is not null)
                 {
-                    name = expertNames[nameIdx % expertNames.Length];
-                    nameIdx++;
-                } while (usedNames.Contains(name));
+                    var pool = veteranPool[personality];
+                    var vetIdx = pool.FindIndex(v => !usedNames.Contains(v.Name));
+                    if (vetIdx >= 0)
+                    {
+                        veteranMatch = pool[vetIdx];
+                        pool.RemoveAt(vetIdx);
+                    }
+                    else
+                    {
+                        // Fall through to other personality pools
+                        foreach (var otherP in personalities)
+                        {
+                            if (otherP == personality) continue;
+                            var otherPool = veteranPool[otherP];
+                            var otherIdx = otherPool.FindIndex(v => !usedNames.Contains(v.Name));
+                            if (otherIdx >= 0)
+                            {
+                                veteranMatch = otherPool[otherIdx];
+                                personality = veteranMatch.Personality;
+                                otherPool.RemoveAt(otherIdx);
+                                break;
+                            }
+                        }
+                    }
+                }
+
+                if (veteranMatch is not null)
+                {
+                    name = veteranMatch.Name;
+                }
+                else
+                {
+                    do
+                    {
+                        name = expertNames[nameIdx % expertNames.Length];
+                        nameIdx++;
+                    } while (usedNames.Contains(name));
+                }
                 usedNames.Add(name);
 
                 var confidenceMap = new Dictionary<int, double>();
                 for (int n = settings.NumberRangeMin; n <= settings.NumberRangeMax; n++)
-                    confidenceMap[n] = 0;
+                    confidenceMap[n] = veteranMatch?.ConfidenceMap.GetValueOrDefault(n) ?? 0;
 
                 experts[e] = new SimExpert($"mgr{m}-exp{e}", name, personality, confidenceMap);
             }
@@ -390,6 +453,38 @@ public class GameSimulatorService
     private static TryResult? GetBestTryThisRound(SimExpert expert) =>
         expert.RoundHistory.Count == 0 ? null : expert.RoundHistory.MaxBy(t => t.Stars);
 
+    private static List<ExpertOutcome> BuildOutcomes(SimManager[] managers)
+    {
+        var outcomes = new List<ExpertOutcome>();
+        foreach (var manager in managers)
+        {
+            foreach (var expert in manager.Experts)
+            {
+                var bestStars = expert.TryHistory.Count > 0 ? expert.TryHistory.Max(t => t.Stars) : 0;
+                var bestTry = expert.TryHistory.Count > 0
+                    ? expert.TryHistory.OrderByDescending(t => t.Stars).First()
+                    : null;
+                var avgRound = expert.RoundScores.Count > 0
+                    ? expert.RoundScores.Average()
+                    : 0.0;
+
+                outcomes.Add(new ExpertOutcome(
+                    Name: expert.Name,
+                    Personality: expert.Personality,
+                    Status: expert.Status,
+                    RoundsPlayed: expert.RoundScores.Count,
+                    BestEverStars: bestStars,
+                    AvgRoundScore: avgRound,
+                    EliminatedAtRound: expert.EliminatedAtRound,
+                    BestGuess: bestTry?.Guess ?? [],
+                    SecretCombo: manager.SecretCombination,
+                    ConfidenceMap: new Dictionary<int, double>(expert.ConfidenceMap)
+                ));
+            }
+        }
+        return outcomes;
+    }
+
     private static string BuildLeaderboard(SimManager[] managers)
     {
         var entries = managers
@@ -432,6 +527,7 @@ internal class SimExpert(string id, string name, string personality, Dictionary<
     public List<TryResult> RoundHistory { get; } = [];
     public List<int> RoundScores { get; } = [];
     public int CurrentRoundScore { get; set; }
+    public int? EliminatedAtRound { get; set; }
 }
 
 internal record TryResult(int Round, int TryNumber, int[] Guess, int Stars);
@@ -444,7 +540,25 @@ public record SimulationResult(
     int DurationSeconds,
     string? WinnerJson,
     string LeaderboardJson,
-    string SettingsJson);
+    string SettingsJson,
+    List<ExpertOutcome> ExpertOutcomes);
+
+public record ExpertOutcome(
+    string Name,
+    string Personality,
+    string Status,
+    int RoundsPlayed,
+    int BestEverStars,
+    double AvgRoundScore,
+    int? EliminatedAtRound,
+    int[] BestGuess,
+    int[] SecretCombo,
+    Dictionary<int, double> ConfidenceMap);
+
+public record VeteranSeed(
+    string Name,
+    string Personality,
+    Dictionary<int, double> ConfidenceMap);
 
 public record ScheduledGameSettings(
     string LottoGame,

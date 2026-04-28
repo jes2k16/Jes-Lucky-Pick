@@ -14,6 +14,12 @@ public class ExpertCareerRepository(AppDbContext context) : IExpertCareerReposit
             .OrderByDescending(c => c.LastPlayedAt)
             .ToListAsync(ct);
 
+    public async Task<IReadOnlyList<ExpertCareer>> GetAllAsync(CancellationToken ct = default)
+        => await context.ExpertCareers
+            .Include(c => c.LottoStats)
+            .OrderByDescending(c => c.LastPlayedAt)
+            .ToListAsync(ct);
+
     public async Task<ExpertCareer?> GetByUserNamePersonalityAsync(
         Guid userId, string name, string personality, CancellationToken ct = default)
         => await context.ExpertCareers

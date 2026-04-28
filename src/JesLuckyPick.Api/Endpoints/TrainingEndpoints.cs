@@ -88,8 +88,16 @@ public static class TrainingEndpoints
             IExpertCareerRepository careerRepo,
             ClaimsPrincipal user) =>
         {
-            var userId = Guid.Parse(user.FindFirstValue(ClaimTypes.NameIdentifier)!);
-            var careers = await careerRepo.GetByUserAsync(userId);
+            // Show all careers across all admin users so Hangfire-scheduled
+            // training runs and any admin-played games are visible on the
+            // Veteran Data page — mirrors the /sessions endpoint behavior.
+            // Deduplicate by Name+Personality, keeping the record with the
+            // most games played (matches BulkUpsertAsync's merge strategy).
+            var allCareers = await careerRepo.GetAllAsync();
+            var careers = allCareers
+                .GroupBy(c => $"{c.Name}:{c.Personality}")
+                .Select(g => g.OrderByDescending(c => c.GamesPlayed).First())
+                .ToList();
 
             return Results.Ok(careers.Select(c => new ExpertCareerDto
             {
